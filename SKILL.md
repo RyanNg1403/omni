@@ -43,6 +43,30 @@ plain shells still exist as panes, but omni's sidebar agent section intentionall
 
 important: ids can compact when tabs, panes, or workspaces are closed. do not treat them as durable ids. re-read ids from `workspace list`, `tab list`, `pane list`, or create/split responses when you need a current id. do not guess that an older `1-3` is still the same pane later.
 
+## terminal ids (durable peer addressing)
+
+every pane is backed by a terminal with a stable `terminal_id` of the form `term_<hex>` (e.g. `term_652d9f4cd425b1`). terminal ids are allocated once per terminal and never reused — they do **not** compact when sibling panes close.
+
+`omni pane list`, `omni pane get`, `omni pane read`, and the `omni agent` command family all expose `terminal_id` alongside `pane_id`. event payloads from `omni wait output` and `omni wait agent-status` also carry it.
+
+every `omni pane` and `omni wait` command that takes a target accepts the `term_<hex>` form interchangeably with the public `w<ws>-N` form:
+
+```bash
+omni pane read term_652d9f4cd425b1 --source recent --lines 80
+omni pane run  term_652d9f4cd425b1 "echo hello"
+omni wait agent-status term_652d9f4cd425b1 --status done --timeout 600000
+```
+
+`omni wait` subscriptions resolve the target to a `terminal_id` once at probe time and match incoming events by `terminal_id`, so a wait survives mid-flight compaction.
+
+prefer terminal ids over public pane ids for:
+
+- long-lived references stored in scripts or notes
+- targets passed between agents over the socket
+- any `omni wait` whose target's sibling panes may close before the wait fires
+
+the public `w<ws>-N` and short `1-2` forms are still fine for quick interactive typing and for one-shot commands you fire immediately after `omni pane list`.
+
 ## discover yourself
 
 see what panes exist and which one is focused:
