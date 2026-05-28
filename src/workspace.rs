@@ -257,6 +257,27 @@ impl Workspace {
         )
     }
 
+    /// Create a new tab whose root pane runs the given `argv` (typically an agent process).
+    pub fn create_tab_argv(
+        &mut self,
+        rows: u16,
+        cols: u16,
+        cwd: PathBuf,
+        scrollback_limit_bytes: usize,
+        host_terminal_theme: crate::terminal_theme::TerminalTheme,
+        argv: &[String],
+    ) -> std::io::Result<(usize, TerminalState, TerminalRuntime)> {
+        self.create_tab_with_runtime(
+            rows,
+            cols,
+            cwd,
+            scrollback_limit_bytes,
+            host_terminal_theme,
+            "",
+            Some(argv),
+        )
+    }
+
     fn create_tab_with_runtime(
         &mut self,
         rows: u16,

@@ -31,13 +31,14 @@ pub(super) fn run_agent_command(args: &[String]) -> std::io::Result<i32> {
 }
 
 fn agent_start(args: &[String]) -> std::io::Result<i32> {
+    let usage = "usage: herdr agent start <name> [--cwd PATH] [--workspace ID] [--tab ID | --new-tab] [--split right|down] [--focus|--no-focus] -- <argv...>";
     let Some(name) = args.first() else {
-        eprintln!("usage: herdr agent start <name> [--cwd PATH] [--workspace ID] [--tab ID] [--split right|down] [--focus|--no-focus] -- <argv...>");
+        eprintln!("{usage}");
         return Ok(2);
     };
 
     let Some(separator) = args.iter().position(|arg| arg == "--") else {
-        eprintln!("usage: herdr agent start <name> [--cwd PATH] [--workspace ID] [--tab ID] [--split right|down] [--focus|--no-focus] -- <argv...>");
+        eprintln!("{usage}");
         return Ok(2);
     };
     if separator == args.len() - 1 {
@@ -50,6 +51,7 @@ fn agent_start(args: &[String]) -> std::io::Result<i32> {
     let mut tab_id = None;
     let mut split = None;
     let mut focus = false;
+    let mut new_tab = false;
 
     let mut index = 1;
     while index < separator {
@@ -86,6 +88,10 @@ fn agent_start(args: &[String]) -> std::io::Result<i32> {
                 split = Some(super::parse_split_direction(value)?);
                 index += 2;
             }
+            "--new-tab" => {
+                new_tab = true;
+                index += 1;
+            }
             "--focus" => {
                 focus = true;
                 index += 1;
@@ -101,6 +107,11 @@ fn agent_start(args: &[String]) -> std::io::Result<i32> {
         }
     }
 
+    if new_tab && (tab_id.is_some() || split.is_some()) {
+        eprintln!("--new-tab cannot be combined with --tab or --split");
+        return Ok(2);
+    }
+
     super::print_response(&super::send_request(&Request {
         id: "cli:agent:start".into(),
         method: Method::AgentStart(AgentStartParams {
@@ -110,6 +121,7 @@ fn agent_start(args: &[String]) -> std::io::Result<i32> {
             tab_id,
             split,
             focus,
+            new_tab,
             argv: args[separator + 1..].to_vec(),
         }),
     })?)
@@ -421,7 +433,7 @@ fn print_agent_help() {
     eprintln!("  herdr agent focus <target>");
     eprintln!("  herdr agent wait <target> --status <idle|working|blocked|unknown> [--timeout MS]");
     eprintln!("  herdr agent attach <target> [--takeover]");
-    eprintln!("  herdr agent start <name> [--cwd PATH] [--workspace ID] [--tab ID] [--split right|down] [--focus|--no-focus] -- <argv...>");
+    eprintln!("  herdr agent start <name> [--cwd PATH] [--workspace ID] [--tab ID | --new-tab] [--split right|down] [--focus|--no-focus] -- <argv...>");
     eprintln!("  targets accept terminal ids, unique agent names, detected/reported agent labels, and legacy pane ids");
     eprintln!(
         "  agent send writes literal text; use pane run when you want command text plus Enter"

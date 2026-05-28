@@ -113,6 +113,12 @@ impl App {
             });
         }
 
+        if params.new_tab && (params.tab_id.is_some() || params.split.is_some()) {
+            return Err(AgentStartError::PlacementConflict(
+                "--new-tab cannot be combined with --tab or --split",
+            ));
+        }
+
         let cwd = params
             .cwd
             .map(PathBuf::from)
@@ -122,7 +128,21 @@ impl App {
         let focus = params.focus;
         let (rows, cols) = self.state.estimate_pane_size();
 
-        let (ws_idx, tab_idx, pane_id) = if let Some(tab_id) = params.tab_id {
+        let (ws_idx, tab_idx, pane_id) = if params.new_tab {
+            if let Some(workspace_id) = params.workspace_id {
+                let ws_idx = self.parse_workspace_id(&workspace_id).ok_or(
+                    AgentStartError::TargetNotFound {
+                        target: workspace_id,
+                    },
+                )?;
+                self.spawn_agent_tab_root(ws_idx, cwd, &argv, focus)?
+            } else if self.state.workspaces.is_empty() {
+                self.spawn_agent_workspace(cwd, rows, cols, &argv, focus)?
+            } else {
+                let ws_idx = self.state.active.unwrap_or(0);
+                self.spawn_agent_tab_root(ws_idx, cwd, &argv, focus)?
+            }
+        } else if let Some(tab_id) = params.tab_id {
             let (ws_idx, tab_idx) =
                 self.parse_tab_id(&tab_id)
                     .ok_or_else(|| AgentStartError::TargetNotFound {
@@ -135,7 +155,9 @@ impl App {
                     }
                 })?;
                 if requested_ws_idx != ws_idx {
-                    return Err(AgentStartError::PlacementConflict);
+                    return Err(AgentStartError::PlacementConflict(
+                        "--tab must belong to --workspace",
+                    ));
                 }
             }
             let target_pane = self.state.workspaces[ws_idx].tabs[tab_idx].layout.focused();
@@ -217,9 +239,9 @@ impl App {
                 code: "agent_placement_not_found".into(),
                 message: format!("agent placement target {target} not found"),
             },
-            AgentStartError::PlacementConflict => crate::api::schema::ErrorBody {
+            AgentStartError::PlacementConflict(reason) => crate::api::schema::ErrorBody {
                 code: "agent_placement_conflict".into(),
-                message: "--tab must belong to --workspace".into(),
+                message: reason.into(),
             },
             AgentStartError::SpawnFailed(message) => crate::api::schema::ErrorBody {
                 code: "agent_start_failed".into(),
@@ -343,6 +365,48 @@ impl App {
         Ok((ws_idx, 0, pane_id))
     }
 
+    fn spawn_agent_tab_root(
+        &mut self,
+        ws_idx: usize,
+        cwd: PathBuf,
+        argv: &[String],
+        focus: bool,
+    ) -> Result<(usize, usize, crate::layout::PaneId), AgentStartError> {
+        let (rows, cols) = self.state.estimate_pane_size();
+        let previous_focus = self.state.current_pane_focus_target();
+        let scrollback_limit_bytes = self.state.pane_scrollback_limit_bytes;
+        let host_terminal_theme = self.state.host_terminal_theme;
+        let ws = self
+            .state
+            .workspaces
+            .get_mut(ws_idx)
+            .ok_or_else(|| AgentStartError::TargetNotFound {
+                target: ws_idx.to_string(),
+            })?;
+        let (tab_idx, terminal, runtime) = ws
+            .create_tab_argv(
+                rows,
+                cols,
+                cwd,
+                scrollback_limit_bytes,
+                host_terminal_theme,
+                argv,
+            )
+            .map_err(|err| AgentStartError::SpawnFailed(err.to_string()))?;
+        let pane_id = ws.tabs[tab_idx].root_pane;
+        self.terminal_runtimes.insert(terminal.id.clone(), runtime);
+        self.state.remove_alias_shadowed_by_new_pane(pane_id);
+        self.state.terminals.insert(terminal.id.clone(), terminal);
+        if focus {
+            self.state.switch_workspace_tab(ws_idx, tab_idx);
+            self.state
+                .record_pane_focus_change(previous_focus, ws_idx, pane_id);
+            self.state.mode = Mode::Terminal;
+        }
+        self.schedule_session_save();
+        Ok((ws_idx, tab_idx, pane_id))
+    }
+
     fn spawn_agent_split(
         &mut self,
         ws_idx: usize,
@@ -447,7 +511,7 @@ pub(super) enum AgentStartError {
     TargetNotFound {
         target: String,
     },
-    PlacementConflict,
+    PlacementConflict(&'static str),
     SpawnFailed(String),
     DuplicateName {
         name: String,

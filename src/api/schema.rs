@@ -257,6 +257,10 @@ pub struct AgentStartParams {
     pub split: Option<SplitDirection>,
     #[serde(default)]
     pub focus: bool,
+    /// Create a new tab and spawn the agent as that tab's root pane.
+    /// Mutually exclusive with `tab_id` and `split`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub new_tab: bool,
     pub argv: Vec<String>,
 }
 

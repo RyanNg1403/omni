@@ -2761,6 +2761,7 @@ mod tests {
                 tab_id: None,
                 split: Some(crate::api::schema::SplitDirection::Right),
                 focus: true,
+                new_tab: false,
                 argv: vec!["/usr/bin/true".into()],
             }),
         });
@@ -2773,6 +2774,101 @@ mod tests {
 
         assert_eq!(app.state.active, Some(0));
         assert_eq!(app.state.workspaces[0].focused_pane_id(), Some(root));
+
+        let runtimes: Vec<_> = app.terminal_runtimes.drain().collect();
+        for (_terminal_id, runtime) in runtimes {
+            runtime.shutdown();
+        }
+    }
+
+    #[tokio::test]
+    async fn agent_start_new_tab_spawns_single_pane() {
+        let mut app = test_app();
+        let workspace = Workspace::test_new("agent-start-new-tab");
+        let root = workspace.tabs[0].root_pane;
+        app.state.workspaces = vec![workspace];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        let original_tab_count = app.state.workspaces[0].tabs.len();
+        let original_pane_count = app.state.workspaces[0].public_pane_numbers.len();
+
+        let response = app.handle_api_request(crate::api::schema::Request {
+            id: "req_agent_start_new_tab".into(),
+            method: crate::api::schema::Method::AgentStart(crate::api::schema::AgentStartParams {
+                name: "worker".into(),
+                cwd: None,
+                workspace_id: None,
+                tab_id: None,
+                split: None,
+                focus: false,
+                new_tab: true,
+                argv: vec!["/usr/bin/true".into()],
+            }),
+        });
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+
+        assert_eq!(response["result"]["type"], "agent_started");
+        // A new tab was created.
+        assert_eq!(
+            app.state.workspaces[0].tabs.len(),
+            original_tab_count + 1,
+            "expected one new tab",
+        );
+        // The new tab has exactly one pane (no shell + split duplication).
+        let new_tab_idx = app.state.workspaces[0].tabs.len() - 1;
+        assert_eq!(
+            app.state.workspaces[0].tabs[new_tab_idx].panes.len(),
+            1,
+            "new tab should contain exactly one pane",
+        );
+        // Public pane count grew by exactly 1 across the whole workspace.
+        assert_eq!(
+            app.state.workspaces[0].public_pane_numbers.len(),
+            original_pane_count + 1,
+        );
+        // --no-focus: the original root should remain untouched in tab 0.
+        assert!(
+            app.state.workspaces[0]
+                .public_pane_numbers
+                .contains_key(&root),
+        );
+
+        let runtimes: Vec<_> = app.terminal_runtimes.drain().collect();
+        for (_terminal_id, runtime) in runtimes {
+            runtime.shutdown();
+        }
+    }
+
+    #[tokio::test]
+    async fn agent_start_new_tab_conflicts_with_tab_id() {
+        let mut app = test_app();
+        let workspace = Workspace::test_new("agent-start-conflict");
+        app.state.workspaces = vec![workspace];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+
+        let tab_id = app.public_tab_id(0, 0).unwrap();
+
+        let response = app.handle_api_request(crate::api::schema::Request {
+            id: "req_agent_start_conflict".into(),
+            method: crate::api::schema::Method::AgentStart(crate::api::schema::AgentStartParams {
+                name: "worker".into(),
+                cwd: None,
+                workspace_id: None,
+                tab_id: Some(tab_id),
+                split: None,
+                focus: false,
+                new_tab: true,
+                argv: vec!["/usr/bin/true".into()],
+            }),
+        });
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+
+        assert_eq!(
+            response["error"]["code"], "agent_placement_conflict",
+            "expected placement conflict, got: {response}",
+        );
 
         let runtimes: Vec<_> = app.terminal_runtimes.drain().collect();
         for (_terminal_id, runtime) in runtimes {
