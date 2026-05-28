@@ -4,9 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   push:
-    branches: [master]
-    paths-ignore:
-      - "website/**"
+    branches: [main]
 
 permissions:
   contents: read

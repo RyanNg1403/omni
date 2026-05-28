@@ -3027,72 +3027,8 @@ mod tests {
         assert_eq!(release.download_url, "https://example.com/omni");
     }
 
-    // Disabled in the omni fork: `website/latest.json` is upstream's release
-    // manifest and references upstream's herdr release artifacts. omni does not
-    // currently host a release manifest. Re-enable (and update fixtures) once
-    // omni has its own release infrastructure.
-    #[test]
-    #[ignore = "omni does not maintain the upstream website/ release manifest"]
-    fn checked_in_website_manifest_matches_update_schema() {
-        let manifest: UpdateManifest = serde_json::from_str(include_str!("../website/latest.json"))
-            .expect("website/latest.json should match updater schema");
-
-        assert!(!manifest
-            .metadata_for_version(&Version::parse(&manifest.version).unwrap())
-            .expect("metadata")
-            .notes_body()
-            .is_empty());
-        // website/latest.json describes the latest released binaries, not the
-        // current unreleased checkout. Its protocol is updated by the release
-        // flow together with the release assets.
-        assert!(manifest.protocol.is_some());
-        assert_eq!(manifest.assets.len(), 4);
-        assert!(manifest.releases.contains_key(&manifest.version));
-
-        for target in [
-            "linux-x86_64",
-            "linux-aarch64",
-            "macos-x86_64",
-            "macos-aarch64",
-        ] {
-            let url = manifest
-                .assets
-                .get(target)
-                .unwrap_or_else(|| panic!("missing asset URL for {target}"));
-            assert!(
-                url.contains(&format!("/releases/download/v{}/", manifest.version)),
-                "unexpected release URL for {target}: {url}"
-            );
-            assert!(
-                url.ends_with(&format!("omni-{target}")),
-                "unexpected asset name for {target}: {url}"
-            );
-        }
-
-        for (version, release) in &manifest.releases {
-            let assets = release
-                .get("assets")
-                .and_then(serde_json::Value::as_object)
-                .unwrap_or_else(|| panic!("missing assets for release {version}"));
-            for target in [
-                "linux-x86_64",
-                "linux-aarch64",
-                "macos-x86_64",
-                "macos-aarch64",
-            ] {
-                let url = assets
-                    .get(target)
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or_else(|| panic!("missing asset URL for {version} {target}"));
-                assert!(
-                    url.contains(&format!("/releases/download/v{version}/")),
-                    "unexpected release URL for {version} {target}: {url}"
-                );
-                assert!(
-                    url.ends_with(&format!("omni-{target}")),
-                    "unexpected asset name for {version} {target}: {url}"
-                );
-            }
-        }
-    }
+    // The upstream `website/latest.json` release manifest is not part of omni.
+    // The corresponding test (`checked_in_website_manifest_matches_update_schema`)
+    // has been removed along with the website/ directory. Reintroduce when omni
+    // ships its own release manifest.
 }

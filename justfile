@@ -29,69 +29,9 @@ install-hooks:
 build:
     cargo build --release --locked
 
-# Build the website and documentation
-website-build:
-    cd website && bun install --frozen-lockfile && bun run build
-
 # Build the vendored libghostty-vt source dist
 build-libghostty-vt:
     scripts/build_vendored_libghostty_vt.sh
-
-# Check that release docs and changelog have been finalized from docs/next before release
-release-docs-check:
-    @for file in README.md CHANGELOG.md; do \
-        if ! diff -u "$file" "docs/next/$file"; then \
-            echo "error: $file differs from docs/next/$file; finalize release docs before releasing"; \
-            exit 1; \
-        fi; \
-    done
-    @for file in CONFIGURATION.md INTEGRATIONS.md SOCKET_API.md; do \
-        if [ -e "$file" ]; then \
-            echo "error: $file was replaced by website docs; remove the root copy"; \
-            exit 1; \
-        fi; \
-    done
-    @test -d docs/next/website/src/content/docs
-    @for file in website/src/content/docs/*.mdx; do \
-        staged="docs/next/website/src/content/docs/$(basename "$file")"; \
-        if [ ! -f "$staged" ]; then \
-            echo "error: $staged is missing; docs/next/website/src/content/docs must mirror website/src/content/docs"; \
-            exit 1; \
-        fi; \
-        if ! diff -u "$file" "$staged"; then \
-            echo "error: $file differs from $staged; finalize website docs before releasing"; \
-            exit 1; \
-        fi; \
-    done
-    @for file in docs/next/website/src/content/docs/*.mdx; do \
-        released="website/src/content/docs/$(basename "$file")"; \
-        if [ ! -f "$released" ]; then \
-            echo "error: $file has no matching released website doc"; \
-            exit 1; \
-        fi; \
-    done
-
-# Finalize changelog, bump version, commit, tag, push, and trigger the GitHub Release workflow (usage: just release 0.1.1)
-release version:
-    @if [ -n "$(git status --porcelain)" ]; then \
-        echo "error: commit your changes first"; \
-        exit 1; \
-    fi
-    @if git rev-parse "v{{version}}" >/dev/null 2>&1; then \
-        echo "error: tag v{{version}} already exists"; \
-        exit 1; \
-    fi
-    just release-docs-check
-    python3 scripts/changelog.py prepare --version {{version}}
-    cp CHANGELOG.md docs/next/CHANGELOG.md
-    sed -i.bak 's/^version = ".*"/version = "{{version}}"/' Cargo.toml && rm -f Cargo.toml.bak
-    cargo update -p omni --offline
-    just check
-    git add CHANGELOG.md docs/next/CHANGELOG.md Cargo.toml Cargo.lock
-    git diff --cached --quiet || git commit -m "release: v{{version}}"
-    git tag -a v{{version}} -m "v{{version}}"
-    git push --follow-tags
-    @echo "v{{version}} released — GitHub Actions building binaries and updating website/latest.json"
 
 # Print default config
 default-config:

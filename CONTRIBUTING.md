@@ -50,13 +50,9 @@ If you plan to implement the change yourself, say that directly in the issue and
 
 ## Documentation for unreleased changes
 
-The root `README.md`, root `CHANGELOG.md`, and website docs describe the latest released version of omni. Do not update root `README.md`, root `CHANGELOG.md`, or `website/src/content/docs/` for normal PRs.
+If your PR changes user-facing behavior, update or call out the needed README change in the PR. omni does not yet ship a separate website-docs system; the README in the repo root is the canonical user-facing reference.
 
-If your PR changes user-facing behavior, mention the needed public-doc update in the PR. Update `docs/next/README.md` only when the root README needs to change for the next release. Update the full website-doc mirror under `docs/next/website/src/content/docs/` when website docs need to change for the next release.
-
-You do not need to edit the changelog for normal PRs. Maintainers prepare `docs/next/CHANGELOG.md` during release review.
-
-If you are unsure whether docs are needed, mention it in the PR.
+You do not need to edit the changelog for normal PRs.
 
 ## Before submitting a PR
 
@@ -90,7 +86,7 @@ fix: handle pane focus
 refs #128
 ```
 
-Do not use GitHub closing keywords like `fixes #128`, `closes #128`, or `resolves #128` in normal PR commits. Omni closes released issues after a release is published, not when unreleased commits land on `master`.
+Do not use GitHub closing keywords like `fixes #128`, `closes #128`, or `resolves #128` in normal PR commits. Omni closes released issues after a release is published, not when unreleased commits land on `main`.
 
 ## PR scope
 
