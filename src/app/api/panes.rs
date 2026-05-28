@@ -512,9 +512,9 @@ mod tests {
         app.state.workspaces = vec![Workspace::test_new("issue")];
         app.state.workspaces[0].worktree_space = Some(crate::workspace::WorktreeSpaceMembership {
             key: "repo-key".into(),
-            label: "herdr".into(),
-            repo_root: "/repo/herdr".into(),
-            checkout_path: "/repo/herdr-issue".into(),
+            label: "omni".into(),
+            repo_root: "/repo/omni".into(),
+            checkout_path: "/repo/omni-issue".into(),
             is_linked_worktree: true,
         });
         app

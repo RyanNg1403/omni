@@ -17,3 +17,18 @@ __pycache__/
 /.pi/cache
 /result
 /result-*
+
+# Local-only artifacts (omni fork)
+/AGENTS.md
+/CLAUDE.md
+/.brv/
+/BUG_*.md
+/CODEX_*.md
+/DISCUSS_*.md
+/PLAN_*.md
+/ISSUE_DRAFT.md
+/CHANGE_EXPLAINER.html
+/agent-orchestration.html
+/bug-report.html
+/workflow.md
+/scripts/repro_codex_detector.py

@@ -1,0 +1,36 @@
+omni
+====
+
+omni is a fork of Herdr (https://github.com/ogulcancelik/herdr), licensed
+under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
+
+Origins
+-------
+
+omni was forked from Herdr at version 0.6.4. The Git tag `omni-fork-point`
+marks the last upstream commit that omni inherits. All commits made on top
+of that tag in this repository are omni-specific modifications by the omni
+authors. Full upstream history is preserved in this repository in keeping
+with AGPL §5(a), which requires "prominent notices stating that you modified
+[the work], and giving a relevant date."
+
+Copyright Holders
+-----------------
+
+Copyright (c) 2026 Phat Nguyen
+Copyright (c) 2024-2026 Ogulcan Celik (original Herdr project)
+
+The omni name, branding, and any forks-specific changes are the work of the
+omni authors. The original Herdr name, branding, and trademarks belong to
+the upstream Herdr project.
+
+Relationship to Herdr
+---------------------
+
+omni is an independent fork with its own design philosophy. It is not
+affiliated with, endorsed by, or supported by the upstream Herdr project
+or its maintainer. Bug reports and feature requests for omni should be
+filed against omni's repository, not the upstream Herdr repository.
+
+For commercial licensing of the upstream Herdr project, see Herdr's own
+contact channels. omni does not currently offer commercial licensing.

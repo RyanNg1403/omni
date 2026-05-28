@@ -26,7 +26,7 @@ fn integration_status(args: &[String]) -> std::io::Result<i32> {
         [] => false,
         [flag] if flag == "--outdated-only" => true,
         _ => {
-            eprintln!("usage: herdr integration status [--outdated-only]");
+            eprintln!("usage: omni integration status [--outdated-only]");
             return Ok(2);
         }
     };
@@ -103,13 +103,13 @@ fn parse_integration_target(
 ) -> std::io::Result<Option<IntegrationTarget>> {
     let Some(target) = args.first().map(|arg| arg.as_str()) else {
         eprintln!(
-            "usage: herdr integration {action} <pi|omp|claude|codex|opencode|hermes|qodercli>"
+            "usage: omni integration {action} <pi|omp|claude|codex|opencode|hermes|qodercli>"
         );
         return Ok(None);
     };
     if args.len() != 1 {
         eprintln!(
-            "usage: herdr integration {action} <pi|omp|claude|codex|opencode|hermes|qodercli>"
+            "usage: omni integration {action} <pi|omp|claude|codex|opencode|hermes|qodercli>"
         );
         return Ok(None);
     }
@@ -133,20 +133,20 @@ fn parse_integration_target(
 }
 
 fn print_integration_help() {
-    eprintln!("herdr integration commands:");
-    eprintln!("  herdr integration install pi");
-    eprintln!("  herdr integration install omp");
-    eprintln!("  herdr integration install claude");
-    eprintln!("  herdr integration install codex");
-    eprintln!("  herdr integration install opencode");
-    eprintln!("  herdr integration install hermes");
-    eprintln!("  herdr integration install qodercli");
-    eprintln!("  herdr integration uninstall pi");
-    eprintln!("  herdr integration uninstall omp");
-    eprintln!("  herdr integration uninstall claude");
-    eprintln!("  herdr integration uninstall codex");
-    eprintln!("  herdr integration uninstall opencode");
-    eprintln!("  herdr integration uninstall hermes");
-    eprintln!("  herdr integration uninstall qodercli");
-    eprintln!("  herdr integration status [--outdated-only]");
+    eprintln!("omni integration commands:");
+    eprintln!("  omni integration install pi");
+    eprintln!("  omni integration install omp");
+    eprintln!("  omni integration install claude");
+    eprintln!("  omni integration install codex");
+    eprintln!("  omni integration install opencode");
+    eprintln!("  omni integration install hermes");
+    eprintln!("  omni integration install qodercli");
+    eprintln!("  omni integration uninstall pi");
+    eprintln!("  omni integration uninstall omp");
+    eprintln!("  omni integration uninstall claude");
+    eprintln!("  omni integration uninstall codex");
+    eprintln!("  omni integration uninstall opencode");
+    eprintln!("  omni integration uninstall hermes");
+    eprintln!("  omni integration uninstall qodercli");
+    eprintln!("  omni integration status [--outdated-only]");
 }

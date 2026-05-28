@@ -1,10 +1,13 @@
 //! Self-update mechanism.
 //!
-//! Checks the hosted herdr.dev update manifest for newer versions.
-//! Manual `herdr update` downloads and installs the binary.
+//! Manual `omni update` downloads and installs the binary.
 //! Background checks only surface availability and release notes.
 //! Uses `curl` as a subprocess for HTTP — no additional Rust HTTP dependencies.
 //! JSON parsing uses serde_json (already in deps for persistence).
+//!
+//! NOTE: the upstream `herdr.dev` manifest URL has been disabled in this fork
+//! to prevent the omni binary from self-updating to upstream herdr releases.
+//! `omni`'s own release manifest is not yet hosted.
 
 use std::collections::BTreeMap;
 use std::env;
@@ -17,20 +20,22 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-const UPDATE_MANIFEST_URL: &str = "https://herdr.dev/latest.json";
-const HOMEBREW_FORMULA_API_URL: &str = "https://formulae.brew.sh/api/formula/herdr.json";
-const HERDR_UPDATE_COMMAND: &str = "herdr update";
-const HOMEBREW_UPDATE_COMMAND: &str = "brew update && brew upgrade herdr";
+// Empty disables background and manual update checks. Set once omni has its own
+// release manifest hosted.
+const UPDATE_MANIFEST_URL: &str = "";
+const HOMEBREW_FORMULA_API_URL: &str = "https://formulae.brew.sh/api/formula/omni.json";
+const OMNI_UPDATE_COMMAND: &str = "omni update";
+const HOMEBREW_UPDATE_COMMAND: &str = "brew update && brew upgrade omni";
 const NIX_UPDATE_COMMAND: &str = "update through Nix";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const FAKE_UPDATE_VERSION_ENV: &str = "HERDR_FAKE_UPDATE_VERSION";
-const FAKE_UPDATE_NOTES_VERSION_ENV: &str = "HERDR_FAKE_UPDATE_NOTES_VERSION";
+const FAKE_UPDATE_VERSION_ENV: &str = "OMNI_FAKE_UPDATE_VERSION";
+const FAKE_UPDATE_NOTES_VERSION_ENV: &str = "OMNI_FAKE_UPDATE_NOTES_VERSION";
 const DEFAULT_FAKE_UPDATE_NOTES_VERSION: &str = "0.3.0";
 const SERVER_STOP_RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
 const SERVER_HANDOFF_REQUEST_TIMEOUT: Duration = Duration::from_secs(240);
 const SERVER_HANDOFF_CONFIRM_TIMEOUT: Duration = Duration::from_secs(30);
 const SERVER_SHUTDOWN_POLL_INTERVAL: Duration = Duration::from_millis(100);
-const STAR_PROMPT_REPO: &str = "ogulcancelik/herdr";
+const STAR_PROMPT_REPO: &str = "RyanNg1403/omni";
 const STAR_PROMPT_STATE_FILE: &str = "github-star-prompt.json";
 const STAR_PROMPT_MAX_PROMPTS: u32 = 5;
 const STAR_PROMPT_INTERVAL_UPDATES: [u32; 4] = [2, 3, 5, 7];
@@ -176,6 +181,9 @@ struct ReleaseInfo {
 }
 
 fn fetch_update_manifest() -> Result<UpdateManifest, String> {
+    if UPDATE_MANIFEST_URL.is_empty() {
+        return Err("update checks are disabled in this build".into());
+    }
     let output = Command::new("curl")
         .args([
             "-sfL",
@@ -336,7 +344,7 @@ fn download_update(release: &ReleaseInfo) -> Result<DownloadedUpdate, String> {
     let parent = current_exe.parent().ok_or("can't find binary directory")?;
 
     // Check write permissions early
-    let test_path = parent.join(".herdr-write-test");
+    let test_path = parent.join(".omni-write-test");
     if let Err(e) = fs::write(&test_path, b"") {
         let _ = fs::remove_file(&test_path);
         return Err(format!(
@@ -348,7 +356,7 @@ fn download_update(release: &ReleaseInfo) -> Result<DownloadedUpdate, String> {
     let _ = fs::remove_file(&test_path);
 
     // Unique temp file (avoids races with concurrent instances)
-    let tmp_path = parent.join(format!(".herdr-update-{}.tmp", std::process::id()));
+    let tmp_path = parent.join(format!(".omni-update-{}.tmp", std::process::id()));
 
     // Download the exact asset URL (pinned to the release we checked)
     let status = Command::new("curl")
@@ -400,12 +408,12 @@ fn install_downloaded_update(mut update: DownloadedUpdate) -> Result<(), String>
 // Upgrade flow helpers
 // ---------------------------------------------------------------------------
 
-fn running_inside_herdr_env(herdr_env: Option<&str>) -> bool {
-    herdr_env == Some(crate::HERDR_ENV_VALUE)
+fn running_inside_omni_env(omni_env: Option<&str>) -> bool {
+    omni_env == Some(crate::OMNI_ENV_VALUE)
 }
 
-fn running_inside_herdr() -> bool {
-    running_inside_herdr_env(env::var(crate::HERDR_ENV_VAR).ok().as_deref())
+fn running_inside_omni() -> bool {
+    running_inside_omni_env(env::var(crate::OMNI_ENV_VAR).ok().as_deref())
 }
 
 fn client_protocol_server_is_running_at(socket_path: &Path) -> bool {
@@ -542,7 +550,7 @@ fn plan_running_server_updates(
         )
         .map_err(|err| {
             format!(
-                "failed to read status for herdr target {} at {}: {err}. stop it with `{}` and run `herdr update` again",
+                "failed to read status for omni target {} at {}: {err}. stop it with `{}` and run `omni update` again",
                 target.label,
                 target.socket_path.display(),
                 target.stop_command
@@ -551,7 +559,7 @@ fn plan_running_server_updates(
             Some(server) => server,
             None if target.must_be_running => {
                 return Err(format!(
-                        "herdr target {} looked running, but its status API did not respond at {}. stop it with `{}` and run `herdr update` again",
+                        "omni target {} looked running, but its status API did not respond at {}. stop it with `{}` and run `omni update` again",
                     target.label,
                     target.socket_path.display(),
                     target.stop_command
@@ -559,7 +567,7 @@ fn plan_running_server_updates(
             }
             None if client_protocol_server_is_running_at(&target.client_socket_path) => {
                 return Err(format!(
-                    "herdr target {} has a client socket, but its status API did not respond at {}. stop it with `{}` and run `herdr update` again",
+                    "omni target {} has a client socket, but its status API did not respond at {}. stop it with `{}` and run `omni update` again",
                     target.label,
                     target.socket_path.display(),
                     target.stop_command
@@ -577,7 +585,7 @@ fn plan_running_server_updates(
 
     if plans.is_empty() && target_client_protocol_server_is_running()? {
         return Err(format!(
-            "a herdr server is listening, but its status API is unavailable; try `{}`, or stop the old server process manually, then run `herdr update` again",
+            "a omni server is listening, but its status API is unavailable; try `{}`, or stop the old server process manually, then run `omni update` again",
             crate::session::local_stop_command()
         ));
     }
@@ -616,7 +624,7 @@ fn running_update_targets() -> Result<Vec<RunningUpdateTarget>, String> {
             name: None,
             label: socket_path.display().to_string(),
             stop_command: format!(
-                "{}={} herdr server stop",
+                "{}={} omni server stop",
                 crate::api::SOCKET_PATH_ENV_VAR,
                 socket_path.display()
             ),
@@ -631,7 +639,7 @@ fn running_update_targets() -> Result<Vec<RunningUpdateTarget>, String> {
     }
 
     let sessions = crate::session::list_sessions()
-        .map_err(|err| format!("failed to list herdr sessions: {err}"))?;
+        .map_err(|err| format!("failed to list omni sessions: {err}"))?;
     Ok(sessions
         .into_iter()
         .map(|session| RunningUpdateTarget {
@@ -646,9 +654,9 @@ fn running_update_targets() -> Result<Vec<RunningUpdateTarget>, String> {
                 Some(&session.name)
             }),
             attach_command: Some(if session.default {
-                "herdr".to_string()
+                "omni".to_string()
             } else {
-                format!("herdr session attach {}", session.name)
+                format!("omni session attach {}", session.name)
             }),
             label: session.name.clone(),
             client_socket_path: crate::session::client_socket_path_for(if session.default {
@@ -670,7 +678,7 @@ fn target_client_protocol_server_is_running() -> Result<bool, String> {
     }
 
     let sessions = crate::session::list_sessions()
-        .map_err(|err| format!("failed to list herdr sessions: {err}"))?;
+        .map_err(|err| format!("failed to list omni sessions: {err}"))?;
     Ok(sessions.into_iter().any(|session| {
         let client_socket = crate::session::client_socket_path_for(if session.default {
             None
@@ -692,7 +700,7 @@ pub(crate) fn parse_self_update_args(args: &[String]) -> Result<SelfUpdateOption
         match arg.as_str() {
             "--handoff" => options.live_handoff = true,
             "--help" | "-h" => {
-                return Err("usage: herdr update [--handoff]".to_string());
+                return Err("usage: omni update [--handoff]".to_string());
             }
             _ => return Err(format!("unknown update option: {arg}")),
         }
@@ -706,13 +714,13 @@ fn prompt_to_stop_old_servers_before_update(
 ) -> Result<bool, String> {
     if !io::stdin().is_terminal() {
         return Err(
-            "one or more herdr targets must restart for this update; run `herdr update` from an interactive terminal, or stop those targets and run `herdr update` again"
+            "one or more omni targets must restart for this update; run `omni update` from an interactive terminal, or stop those targets and run `omni update` again"
                 .to_string(),
         );
     }
 
     eprintln!(
-        "these running herdr targets must restart to use v{}:",
+        "these running omni targets must restart to use v{}:",
         release.version
     );
     for plan in plans {
@@ -723,7 +731,7 @@ fn prompt_to_stop_old_servers_before_update(
             protocol_label(plan.server.protocol)
         );
     }
-    eprintln!("herdr can leave them running, or stop them after installing the update.");
+    eprintln!("omni can leave them running, or stop them after installing the update.");
     eprintln!("stopping them will exit their pane processes.");
 
     loop {
@@ -835,7 +843,7 @@ fn print_running_session_update_summary(
     release: &ReleaseInfo,
     options: SelfUpdateOptions,
 ) {
-    eprintln!("running herdr targets:");
+    eprintln!("running omni targets:");
     for plan in plans {
         if options.live_handoff {
             let capability = if server_supports_live_handoff(&plan.server) {
@@ -875,18 +883,18 @@ fn prompt_to_live_handoff_sessions_before_update(
     if !io::stdin().is_terminal() {
         if requires_live_handoff {
             return Err(format!(
-                "one or more herdr targets are running and updating to v{} requires live server handoff; run `herdr update` from an interactive terminal, or stop those targets and run `herdr update` again",
+                "one or more omni targets are running and updating to v{} requires live server handoff; run `omni update` from an interactive terminal, or stop those targets and run `omni update` again",
                 release.version
             ));
         }
         eprintln!(
-            "herdr targets are running. updating the binary will not affect them until they restart."
+            "omni targets are running. updating the binary will not affect them until they restart."
         );
         return Ok(false);
     }
 
     eprintln!(
-        "herdr can hand off {} running target{} to the new server so pane processes keep running.",
+        "omni can hand off {} running target{} to the new server so pane processes keep running.",
         plans.len(),
         if plans.len() == 1 { "" } else { "s" }
     );
@@ -982,7 +990,7 @@ fn prompt_to_stop_old_server_after_failed_handoff(
         protocol_label(release.target_protocol)
     );
     eprintln!(
-        "you can keep using the old server, or stop it now so the next `herdr` start uses v{}.",
+        "you can keep using the old server, or stop it now so the next `omni` start uses v{}.",
         release.version
     );
     eprintln!("stopping the old server will exit its pane processes.");
@@ -1048,13 +1056,13 @@ fn recover_failed_live_handoff_for_update(
         FailedHandoffServerState::NoServerResponding => {
             if let Some(command) = plan.attach_command() {
                 eprintln!(
-                    "no herdr server is responding for session {}. the binary was updated; run `{command}` to start v{}.",
+                    "no omni server is responding for session {}. the binary was updated; run `{command}` to start v{}.",
                     plan.label(),
                     release.version
                 );
             } else {
                 eprintln!(
-                    "no herdr server is responding at {}. the binary was updated; restart with the same socket override to use v{}.",
+                    "no omni server is responding at {}. the binary was updated; restart with the same socket override to use v{}.",
                     plan.socket_path().display(),
                     release.version
                 );
@@ -1063,7 +1071,7 @@ fn recover_failed_live_handoff_for_update(
         }
         FailedHandoffServerState::Unknown(status_error) => {
             eprintln!(
-                "herdr could not determine server state for {} {} after the failed handoff: {status_error}",
+                "omni could not determine server state for {} {} after the failed handoff: {status_error}",
                 plan.target_noun(),
                 plan.label()
             );
@@ -1245,7 +1253,7 @@ fn wait_for_server_shutdown_at(socket_path: &Path, timeout: Duration) -> Result<
 }
 
 fn stop_running_server_for_update(plan: &RunningServerUpdatePlan) -> Result<(), String> {
-    eprintln!("stopping herdr {} {}...", plan.target_noun(), plan.label());
+    eprintln!("stopping omni {} {}...", plan.target_noun(), plan.label());
     stop_server_via_api_at(plan.socket_path(), SERVER_STOP_RESPONSE_TIMEOUT)?;
     wait_for_server_shutdown_at(plan.socket_path(), SERVER_HANDOFF_CONFIRM_TIMEOUT)?;
     Ok(())
@@ -1336,7 +1344,7 @@ fn print_running_session_update_outcomes(
     release: &ReleaseInfo,
 ) {
     if outcomes.is_empty() {
-        eprintln!("run herdr again.");
+        eprintln!("run omni again.");
         return;
     }
 
@@ -1423,7 +1431,7 @@ pub(crate) fn update_install_command() -> &'static str {
     } else if is_nix_managed_install() {
         NIX_UPDATE_COMMAND
     } else {
-        HERDR_UPDATE_COMMAND
+        OMNI_UPDATE_COMMAND
     }
 }
 
@@ -1475,7 +1483,7 @@ fn is_homebrew_managed_exe_path(path: &Path) -> bool {
 }
 
 fn homebrew_cellar_keg_root(path: &Path) -> Option<PathBuf> {
-    if path.file_name()? != "herdr" {
+    if path.file_name()? != "omni" {
         return None;
     }
     let bin_dir = path.parent()?;
@@ -1484,7 +1492,7 @@ fn homebrew_cellar_keg_root(path: &Path) -> Option<PathBuf> {
     }
     let version_dir = bin_dir.parent()?;
     let formula_dir = version_dir.parent()?;
-    if formula_dir.file_name()? != "herdr" {
+    if formula_dir.file_name()? != "omni" {
         return None;
     }
     let cellar_dir = formula_dir.parent()?;
@@ -1668,7 +1676,7 @@ fn parse_star_prompt_response(input: &str) -> Option<bool> {
 
 fn prompt_to_star_repository() -> io::Result<bool> {
     loop {
-        eprint!("If herdr has been useful, would you like to star it? [Y/n] ");
+        eprint!("If omni has been useful, would you like to star it? [Y/n] ");
         io::stderr().flush()?;
 
         let mut input = String::new();
@@ -1756,7 +1764,7 @@ fn maybe_offer_star_after_successful_update() {
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Manual self-update command (`herdr update`).
+/// Manual self-update command (`omni update`).
 pub fn self_update(options: SelfUpdateOptions) -> Result<Version, String> {
     if is_homebrew_managed_install() {
         return Err(format!(
@@ -1766,12 +1774,12 @@ pub fn self_update(options: SelfUpdateOptions) -> Result<Version, String> {
 
     if is_nix_managed_install() {
         return Err(
-            "self-update is disabled for Nix installs; update with `nix profile upgrade` or update the flake input that provides Herdr".into(),
+            "self-update is disabled for Nix installs; update with `nix profile upgrade` or update the flake input that provides Omni".into(),
         );
     }
 
-    if running_inside_herdr() {
-        return Err("run `herdr update` outside herdr after detaching from the session".into());
+    if running_inside_omni() {
+        return Err("run `omni update` outside omni after detaching from the session".into());
     }
 
     eprintln!("checking for updates...");
@@ -1884,7 +1892,7 @@ pub fn auto_update(events: tokio::sync::mpsc::Sender<crate::events::AppEvent>) {
     let install_command = if nix_managed_install {
         NIX_UPDATE_COMMAND
     } else {
-        HERDR_UPDATE_COMMAND
+        OMNI_UPDATE_COMMAND
     };
 
     let _ = events.blocking_send(crate::events::AppEvent::UpdateReady {
@@ -2041,7 +2049,7 @@ mod tests {
         ReleaseInfo {
             version: Version::parse(version).unwrap(),
             target_protocol,
-            download_url: "https://example.com/herdr".to_string(),
+            download_url: "https://example.com/omni".to_string(),
             notes_body: "### Changed\n- One".to_string(),
         }
     }
@@ -2095,32 +2103,32 @@ mod tests {
 
     #[test]
     fn homebrew_cellar_path_is_detected() {
-        let path = Path::new("/opt/homebrew/Cellar/herdr/0.5.9/bin/herdr");
+        let path = Path::new("/opt/homebrew/Cellar/omni/0.5.9/bin/omni");
 
         assert!(is_homebrew_managed_exe_path(path));
         assert_eq!(
             homebrew_cellar_keg_root(path).unwrap(),
-            PathBuf::from("/opt/homebrew/Cellar/herdr/0.5.9")
+            PathBuf::from("/opt/homebrew/Cellar/omni/0.5.9")
         );
     }
 
     #[test]
     fn homebrew_linux_cellar_path_is_detected() {
-        let path = Path::new("/home/linuxbrew/.linuxbrew/Cellar/herdr/0.5.9/bin/herdr");
+        let path = Path::new("/home/linuxbrew/.linuxbrew/Cellar/omni/0.5.9/bin/omni");
 
         assert!(is_homebrew_managed_exe_path(path));
     }
 
     #[test]
     fn homebrew_opt_path_requires_canonicalized_cellar_target() {
-        let path = Path::new("/opt/homebrew/opt/herdr/bin/herdr");
+        let path = Path::new("/opt/homebrew/opt/omni/bin/omni");
 
         assert!(!is_homebrew_managed_exe_path(path));
     }
 
     #[test]
     fn non_homebrew_path_is_not_detected() {
-        let path = Path::new("/usr/local/bin/herdr");
+        let path = Path::new("/usr/local/bin/omni");
 
         assert!(!is_homebrew_managed_exe_path(path));
     }
@@ -2130,15 +2138,15 @@ mod tests {
         #[cfg(unix)]
         {
             let root = std::env::temp_dir().join(format!(
-                "herdr-homebrew-symlink-test-{}",
+                "omni-homebrew-symlink-test-{}",
                 std::process::id()
             ));
-            let cellar_bin = root.join("Cellar/herdr/0.6.2/bin");
-            let opt_bin = root.join("opt/herdr/bin");
+            let cellar_bin = root.join("Cellar/omni/0.6.2/bin");
+            let opt_bin = root.join("opt/omni/bin");
             fs::create_dir_all(&cellar_bin).unwrap();
             fs::create_dir_all(&opt_bin).unwrap();
-            let cellar_binary = cellar_bin.join("herdr");
-            let opt_binary = opt_bin.join("herdr");
+            let cellar_binary = cellar_bin.join("omni");
+            let opt_binary = opt_bin.join("omni");
             fs::write(&cellar_binary, b"").unwrap();
             std::os::unix::fs::symlink(&cellar_binary, &opt_binary).unwrap();
 
@@ -2150,7 +2158,7 @@ mod tests {
 
     #[test]
     fn nix_store_path_is_detected() {
-        let path = Path::new("/nix/store/abc123-herdr-0.6.1/bin/herdr");
+        let path = Path::new("/nix/store/abc123-omni-0.6.1/bin/omni");
 
         assert!(is_nix_store_exe_path(path));
         assert!(is_package_manager_managed_exe_path(path));
@@ -2158,7 +2166,7 @@ mod tests {
 
     #[test]
     fn non_nix_store_path_is_not_detected() {
-        let path = Path::new("/usr/local/bin/herdr");
+        let path = Path::new("/usr/local/bin/omni");
 
         assert!(!is_nix_store_exe_path(path));
     }
@@ -2213,7 +2221,7 @@ mod tests {
                 "protocol": 10,
                 "notes": "### Fixed\n- Brew notes",
                 "assets": {
-                    "linux-x86_64": "https://example.com/herdr-linux-x86_64"
+                    "linux-x86_64": "https://example.com/omni-linux-x86_64"
                 }
             }"####,
         )
@@ -2250,10 +2258,10 @@ mod tests {
     }
 
     #[test]
-    fn running_inside_herdr_env_requires_marker() {
-        assert!(running_inside_herdr_env(Some(crate::HERDR_ENV_VALUE)));
-        assert!(!running_inside_herdr_env(None));
-        assert!(!running_inside_herdr_env(Some("0")));
+    fn running_inside_omni_env_requires_marker() {
+        assert!(running_inside_omni_env(Some(crate::OMNI_ENV_VALUE)));
+        assert!(!running_inside_omni_env(None));
+        assert!(!running_inside_omni_env(Some("0")));
     }
 
     #[test]
@@ -2295,7 +2303,7 @@ mod tests {
         let compatible_release = ReleaseInfo {
             version: Version::parse("0.5.6").unwrap(),
             target_protocol: Some(2),
-            download_url: "https://example.com/herdr".to_string(),
+            download_url: "https://example.com/omni".to_string(),
             notes_body: "### Changed\n- One".to_string(),
         };
         let incompatible_release = ReleaseInfo {
@@ -2329,8 +2337,8 @@ mod tests {
             target: RunningUpdateTarget {
                 name: Some("work".to_string()),
                 label: "work".to_string(),
-                stop_command: "herdr session stop work".to_string(),
-                attach_command: Some("herdr session attach work".to_string()),
+                stop_command: "omni session stop work".to_string(),
+                attach_command: Some("omni session attach work".to_string()),
                 socket_path: crate::session::api_socket_path_for(Some("work")),
                 client_socket_path: crate::session::client_socket_path_for(Some("work")),
                 must_be_running: true,
@@ -2390,11 +2398,11 @@ mod tests {
     fn explicit_session_update_targets_only_that_session() {
         let _guard = env_lock().lock().unwrap();
         let config_home = set_test_config_home("explicit-session");
-        std::env::set_var(crate::api::SOCKET_PATH_ENV_VAR, "/tmp/ignored-herdr.sock");
+        std::env::set_var(crate::api::SOCKET_PATH_ENV_VAR, "/tmp/ignored-omni.sock");
         std::env::remove_var(crate::session::SESSION_ENV_VAR);
         crate::session::clear_explicit_session_for_test();
         let args = vec![
-            "herdr".to_string(),
+            "omni".to_string(),
             "--session".to_string(),
             "work".to_string(),
             "update".to_string(),
@@ -2419,7 +2427,7 @@ mod tests {
     #[test]
     fn socket_override_update_targets_socket_not_env_session() {
         let _guard = env_lock().lock().unwrap();
-        std::env::set_var(crate::api::SOCKET_PATH_ENV_VAR, "/tmp/custom-herdr.sock");
+        std::env::set_var(crate::api::SOCKET_PATH_ENV_VAR, "/tmp/custom-omni.sock");
         std::env::set_var(crate::session::SESSION_ENV_VAR, "work");
         crate::session::clear_explicit_session_for_test();
 
@@ -2433,7 +2441,7 @@ mod tests {
         assert_eq!(targets[0].name, None);
         assert_eq!(
             targets[0].socket_path,
-            PathBuf::from("/tmp/custom-herdr.sock")
+            PathBuf::from("/tmp/custom-omni.sock")
         );
         assert!(targets[0]
             .stop_command
@@ -2464,7 +2472,7 @@ mod tests {
             "unexpected error: {err}"
         );
         assert!(
-            err.contains("herdr session stop work"),
+            err.contains("omni session stop work"),
             "unexpected error: {err}"
         );
     }
@@ -2528,15 +2536,15 @@ mod tests {
         let release = ReleaseInfo {
             version: Version::parse("0.5.6").unwrap(),
             target_protocol: Some(3),
-            download_url: "https://example.com/herdr".to_string(),
+            download_url: "https://example.com/omni".to_string(),
             notes_body: "### Changed\n- One".to_string(),
         };
         let plan = RunningServerUpdatePlan {
             target: RunningUpdateTarget {
                 name: Some("work".to_string()),
                 label: "work".to_string(),
-                stop_command: "herdr session stop work".to_string(),
-                attach_command: Some("herdr session attach work".to_string()),
+                stop_command: "omni session stop work".to_string(),
+                attach_command: Some("omni session attach work".to_string()),
                 socket_path: crate::session::api_socket_path_for(Some("work")),
                 client_socket_path: crate::session::client_socket_path_for(Some("work")),
                 must_be_running: true,
@@ -2647,7 +2655,7 @@ mod tests {
                 .unwrap();
             let value: serde_json::Value = serde_json::from_str(&request).unwrap();
             assert_eq!(value["method"], "server.live_handoff");
-            assert_eq!(value["params"]["import_exe"], "/tmp/herdr-new");
+            assert_eq!(value["params"]["import_exe"], "/tmp/omni-new");
             assert_eq!(value["params"]["expected_protocol"], 77);
             assert_eq!(value["params"]["expected_version"], "9.8.7");
             stream
@@ -2658,14 +2666,14 @@ mod tests {
         let release = ReleaseInfo {
             version: Version::parse("9.8.7").unwrap(),
             target_protocol: Some(77),
-            download_url: "https://example.com/herdr".to_string(),
+            download_url: "https://example.com/omni".to_string(),
             notes_body: "### Changed\n- One".to_string(),
         };
 
         let result = live_handoff_server_via_api_for_release_at(
             &socket_path,
             Duration::from_millis(200),
-            Path::new("/tmp/herdr-new"),
+            Path::new("/tmp/omni-new"),
             &release,
         );
         let _ = handle.join();
@@ -2815,7 +2823,7 @@ mod tests {
     #[test]
     fn star_prompt_state_round_trips() {
         let path = std::env::temp_dir().join(format!(
-            "herdr-star-prompt-{}-{}.json",
+            "omni-star-prompt-{}-{}.json",
             std::process::id(),
             "round-trip"
         ));
@@ -2850,8 +2858,8 @@ mod tests {
                 \"body\": \"### Heads up\\n- Defaults changed\"\n\
             },\n\
             \"assets\": {\n\
-                \"linux-x86_64\": \"https://example.com/herdr-linux-x86_64\",\n\
-                \"macos-aarch64\": \"https://example.com/herdr-macos-aarch64\"\n\
+                \"linux-x86_64\": \"https://example.com/omni-linux-x86_64\",\n\
+                \"macos-aarch64\": \"https://example.com/omni-macos-aarch64\"\n\
             }\n\
         }";
         let manifest: UpdateManifest = serde_json::from_str(json).unwrap();
@@ -2875,7 +2883,7 @@ mod tests {
         );
         assert_eq!(
             manifest.download_url_for("linux", "x86_64").as_deref(),
-            Some("https://example.com/herdr-linux-x86_64")
+            Some("https://example.com/omni-linux-x86_64")
         );
     }
 
@@ -2982,7 +2990,7 @@ mod tests {
         let json = r#"{
             "version": "0.2.0",
             "assets": {
-                "linux-x86_64": "https://example.com/herdr-linux-x86_64"
+                "linux-x86_64": "https://example.com/omni-linux-x86_64"
             }
         }"#;
 
@@ -3004,7 +3012,7 @@ mod tests {
                     "body": "### Heads up\n- Defaults changed"
                 }},
                 "assets": {{
-                    "{asset_key}": "https://example.com/herdr"
+                    "{asset_key}": "https://example.com/omni"
                 }}
             }}"####
         );
@@ -3016,10 +3024,15 @@ mod tests {
             .expect("release info");
 
         assert_eq!(release.version, Version::parse("99.99.99").unwrap());
-        assert_eq!(release.download_url, "https://example.com/herdr");
+        assert_eq!(release.download_url, "https://example.com/omni");
     }
 
+    // Disabled in the omni fork: `website/latest.json` is upstream's release
+    // manifest and references upstream's herdr release artifacts. omni does not
+    // currently host a release manifest. Re-enable (and update fixtures) once
+    // omni has its own release infrastructure.
     #[test]
+    #[ignore = "omni does not maintain the upstream website/ release manifest"]
     fn checked_in_website_manifest_matches_update_schema() {
         let manifest: UpdateManifest = serde_json::from_str(include_str!("../website/latest.json"))
             .expect("website/latest.json should match updater schema");
@@ -3051,7 +3064,7 @@ mod tests {
                 "unexpected release URL for {target}: {url}"
             );
             assert!(
-                url.ends_with(&format!("herdr-{target}")),
+                url.ends_with(&format!("omni-{target}")),
                 "unexpected asset name for {target}: {url}"
             );
         }
@@ -3076,7 +3089,7 @@ mod tests {
                     "unexpected release URL for {version} {target}: {url}"
                 );
                 assert!(
-                    url.ends_with(&format!("herdr-{target}")),
+                    url.ends_with(&format!("omni-{target}")),
                     "unexpected asset name for {version} {target}: {url}"
                 );
             }

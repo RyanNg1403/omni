@@ -1,10 +1,23 @@
-Herdr is dual-licensed:
+omni — a fork of Herdr
 
-1. Open source: GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
-   See the full text below.
+Copyright (c) 2026 Phat Nguyen
+Copyright (c) 2024-2026 Ogulcan Celik (original Herdr project)
 
-2. Commercial: commercial licenses are available for organizations that cannot comply
-   with AGPL. Contact hey@herdr.dev for details.
+omni is licensed under the GNU Affero General Public License v3.0 or later
+(AGPL-3.0-or-later), the same license as the upstream Herdr project from
+which it was forked. See the full license text below.
+
+Modifications by Phat Nguyen are dated 2026 and are tracked via the project's
+Git history; the upstream fork point is marked with the `omni-fork-point` Git
+tag for traceability.
+
+This project carries Herdr's original dual-license note for reference:
+
+  Herdr (the upstream project) is dual-licensed:
+    1. Open source: GNU Affero General Public License v3.0 or later.
+    2. Commercial: commercial licenses are available from the upstream
+       maintainer (contact hey@herdr.dev for details). The commercial track
+       belongs to the upstream Herdr project and is not offered by omni.
 
 --------------------------------------------------------------------------------
 

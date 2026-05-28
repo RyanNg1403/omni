@@ -21,11 +21,12 @@ const REMOTE_SERVER_SHUTDOWN_CONFIRM_TIMEOUT: Duration = Duration::from_secs(5);
 const REMOTE_SERVER_SHUTDOWN_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const CURRENT_PROTOCOL: u32 = crate::protocol::PROTOCOL_VERSION;
-const UPDATE_MANIFEST_URL: &str = "https://herdr.dev/latest.json";
-const REMOTE_BINARY_ENV_VAR: &str = "HERDR_REMOTE_BINARY";
-pub(crate) const REATTACH_COMMAND_ENV_VAR: &str = "HERDR_REATTACH_COMMAND";
+// Disabled in the omni fork; see src/update.rs for the rationale.
+const UPDATE_MANIFEST_URL: &str = "";
+const REMOTE_BINARY_ENV_VAR: &str = "OMNI_REMOTE_BINARY";
+pub(crate) const REATTACH_COMMAND_ENV_VAR: &str = "OMNI_REATTACH_COMMAND";
 
-pub(crate) const REMOTE_KEYBINDINGS_ENV_VAR: &str = "HERDR_REMOTE_KEYBINDINGS";
+pub(crate) const REMOTE_KEYBINDINGS_ENV_VAR: &str = "OMNI_REMOTE_KEYBINDINGS";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RemoteKeybindings {
@@ -153,7 +154,7 @@ pub(crate) fn run_remote(remote: RemoteLaunch) -> io::Result<()> {
     let local_socket = local_forward_socket_path(&remote.target, &session_name);
     let program = std::env::args()
         .next()
-        .unwrap_or_else(|| "herdr".to_string());
+        .unwrap_or_else(|| "omni".to_string());
     let reattach_command = reattach_command(
         &program,
         &remote.target,
@@ -161,17 +162,17 @@ pub(crate) fn run_remote(remote: RemoteLaunch) -> io::Result<()> {
         remote.keybindings,
         remote.live_handoff,
     );
-    let prepared_remote = prepare_remote_herdr(&remote.target, remote.live_handoff)?;
+    let prepared_remote = prepare_remote_omni(&remote.target, remote.live_handoff)?;
     ensure_remote_server_ready(
         &remote.target,
-        &prepared_remote.remote_herdr,
+        &prepared_remote.remote_omni,
         prepared_remote.installed_or_replaced,
         remote.live_handoff,
     )?;
 
     let _bridge = SshStdioBridge::start(
         remote.target,
-        prepared_remote.remote_herdr,
+        prepared_remote.remote_omni,
         local_socket.clone(),
         session_name,
     )?;
@@ -187,7 +188,7 @@ pub(crate) fn run_remote_client_bridge() -> io::Result<()> {
         io::Error::new(
             err.kind(),
             format!(
-                "failed to connect to remote Herdr client socket {}: {err}",
+                "failed to connect to remote Omni client socket {}: {err}",
                 socket_path.display()
             ),
         )
@@ -218,7 +219,7 @@ fn ensure_remote_server_running() -> io::Result<()> {
             return Ok(());
         }
         return Err(io::Error::other(format!(
-            "remote herdr server is running with protocol {}, but this bridge needs protocol {CURRENT_PROTOCOL}; rerun `herdr --remote` from an interactive terminal to approve stopping it",
+            "remote omni server is running with protocol {}, but this bridge needs protocol {CURRENT_PROTOCOL}; rerun `omni --remote` from an interactive terminal to approve stopping it",
             protocol_label(status.protocol)
         )));
     }
@@ -274,15 +275,15 @@ impl RemotePlatform {
 }
 
 #[derive(Debug, Clone)]
-struct RemoteHerdr {
+struct RemoteOmni {
     install_suffix: String,
     shell_path: String,
     platform: RemotePlatform,
 }
 
-impl RemoteHerdr {
+impl RemoteOmni {
     fn for_platform(platform: RemotePlatform) -> Self {
-        let install_suffix = ".local/bin/herdr".to_string();
+        let install_suffix = ".local/bin/omni".to_string();
         let shell_path = format!("\"$HOME/{install_suffix}\"");
         Self {
             install_suffix,
@@ -362,8 +363,8 @@ struct InstallSource {
     temporary_dir: Option<PathBuf>,
 }
 
-struct PreparedRemoteHerdr {
-    remote_herdr: RemoteHerdr,
+struct PreparedRemoteOmni {
+    remote_omni: RemoteOmni,
     installed_or_replaced: bool,
 }
 
@@ -389,64 +390,64 @@ impl InstallSource {
     }
 }
 
-fn prepare_remote_herdr(
+fn prepare_remote_omni(
     target: &str,
     live_handoff_enabled: bool,
-) -> io::Result<PreparedRemoteHerdr> {
+) -> io::Result<PreparedRemoteOmni> {
     let platform = detect_remote_platform(target)?;
-    let remote_herdr = RemoteHerdr::for_platform(platform);
+    let remote_omni = RemoteOmni::for_platform(platform);
     let override_binary = remote_binary_override_path()?;
-    let path_remote_herdr = remote_binary_on_path_any(target, &remote_herdr)?;
+    let path_remote_omni = remote_binary_on_path_any(target, &remote_omni)?;
 
     if override_binary.is_none() {
-        if let Some(path_remote_herdr) = path_remote_herdr
+        if let Some(path_remote_omni) = path_remote_omni
             .as_ref()
             .filter(|candidate| remote_binary_matches(target, candidate).unwrap_or(false))
         {
-            return Ok(PreparedRemoteHerdr {
-                remote_herdr: path_remote_herdr.clone(),
+            return Ok(PreparedRemoteOmni {
+                remote_omni: path_remote_omni.clone(),
                 installed_or_replaced: false,
             });
         }
-        if remote_binary_matches(target, &remote_herdr)? {
-            return Ok(PreparedRemoteHerdr {
-                remote_herdr,
+        if remote_binary_matches(target, &remote_omni)? {
+            return Ok(PreparedRemoteOmni {
+                remote_omni,
                 installed_or_replaced: false,
             });
         }
     }
 
-    if let Some(status_probe_herdr) = path_remote_herdr.as_ref().or_else(|| {
-        remote_binary_exists(target, &remote_herdr)
+    if let Some(status_probe_omni) = path_remote_omni.as_ref().or_else(|| {
+        remote_binary_exists(target, &remote_omni)
             .ok()
-            .and_then(|exists| exists.then_some(&remote_herdr))
+            .and_then(|exists| exists.then_some(&remote_omni))
     }) {
         confirm_remote_install_with_running_server(
             target,
-            status_probe_herdr,
+            status_probe_omni,
             live_handoff_enabled,
         )?;
     }
     confirm_remote_install(
         target,
-        &remote_herdr,
-        &install_source_description(&remote_herdr.platform, override_binary.as_deref()),
+        &remote_omni,
+        &install_source_description(&remote_omni.platform, override_binary.as_deref()),
     )?;
-    let source = resolve_install_source(&remote_herdr.platform, override_binary)?;
-    let install_result = install_remote_herdr(target, &remote_herdr, &source.path);
+    let source = resolve_install_source(&remote_omni.platform, override_binary)?;
+    let install_result = install_remote_omni(target, &remote_omni, &source.path);
     source.cleanup();
     install_result?;
 
-    if !remote_binary_matches(target, &remote_herdr)? {
+    if !remote_binary_matches(target, &remote_omni)? {
         return Err(io::Error::other(format!(
-            "installed remote herdr at {}, but it did not report version {CURRENT_VERSION}",
-            remote_herdr.shell_path
+            "installed remote omni at {}, but it did not report version {CURRENT_VERSION}",
+            remote_omni.shell_path
         )));
     }
     warn_if_remote_bin_not_on_path(target)?;
 
-    Ok(PreparedRemoteHerdr {
-        remote_herdr,
+    Ok(PreparedRemoteOmni {
+        remote_omni,
         installed_or_replaced: true,
     })
 }
@@ -472,57 +473,57 @@ fn detect_remote_platform(target: &str) -> io::Result<RemotePlatform> {
 
 fn remote_binary_on_path_any(
     target: &str,
-    remote_herdr: &RemoteHerdr,
-) -> io::Result<Option<RemoteHerdr>> {
+    remote_omni: &RemoteOmni,
+) -> io::Result<Option<RemoteOmni>> {
     let output = ssh_output(target, remote_path_probe_any_command())?;
     if !output.status.success() {
         return Ok(None);
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    Ok(remote_herdr_from_path_probe_any(remote_herdr, &stdout))
+    Ok(remote_omni_from_path_probe_any(remote_omni, &stdout))
 }
 
 fn remote_path_probe_any_command() -> &'static str {
-    r#"path=$(command -v herdr) || exit 1
+    r#"path=$(command -v omni) || exit 1
 test -n "$path" || exit 1
 printf '%s\n' "$path"
 "#
 }
 
 #[cfg(test)]
-fn remote_herdr_from_path_probe(remote_herdr: &RemoteHerdr, stdout: &str) -> Option<RemoteHerdr> {
+fn remote_omni_from_path_probe(remote_omni: &RemoteOmni, stdout: &str) -> Option<RemoteOmni> {
     let mut lines = stdout.lines();
     let path = lines.next()?;
     let version = lines.next()?.trim();
     let status = lines.next()?;
     let protocol = parse_client_status_json(status)?.protocol;
     if !path.starts_with('/')
-        || version != format!("herdr {CURRENT_VERSION}")
+        || version != format!("omni {CURRENT_VERSION}")
         || protocol != CURRENT_PROTOCOL
     {
         return None;
     }
 
-    Some(remote_herdr.clone().with_shell_path(shell_quote(path)))
+    Some(remote_omni.clone().with_shell_path(shell_quote(path)))
 }
 
-fn remote_herdr_from_path_probe_any(
-    remote_herdr: &RemoteHerdr,
+fn remote_omni_from_path_probe_any(
+    remote_omni: &RemoteOmni,
     stdout: &str,
-) -> Option<RemoteHerdr> {
+) -> Option<RemoteOmni> {
     let mut lines = stdout.lines();
     let path = lines.next()?;
     if !path.starts_with('/') {
         return None;
     }
-    Some(remote_herdr.clone().with_shell_path(shell_quote(path)))
+    Some(remote_omni.clone().with_shell_path(shell_quote(path)))
 }
 
-fn remote_binary_matches(target: &str, remote_herdr: &RemoteHerdr) -> io::Result<bool> {
+fn remote_binary_matches(target: &str, remote_omni: &RemoteOmni) -> io::Result<bool> {
     let command = format!(
         "test -x {0} && {0} --version && {0} status client --json",
-        remote_herdr.shell_path
+        remote_omni.shell_path
     );
     let output = ssh_output(target, &command)?;
     if !output.status.success() {
@@ -533,14 +534,14 @@ fn remote_binary_matches(target: &str, remote_herdr: &RemoteHerdr) -> io::Result
     let mut lines = stdout.lines();
     let version = lines.next().unwrap_or_default().trim();
     let status = lines.next().unwrap_or_default();
-    Ok(version == format!("herdr {CURRENT_VERSION}")
+    Ok(version == format!("omni {CURRENT_VERSION}")
         && parse_client_status_json(status)
             .map(|status| status.protocol == CURRENT_PROTOCOL)
             .unwrap_or(false))
 }
 
-fn remote_binary_exists(target: &str, remote_herdr: &RemoteHerdr) -> io::Result<bool> {
-    let command = format!("test -x {}", remote_herdr.shell_path);
+fn remote_binary_exists(target: &str, remote_omni: &RemoteOmni) -> io::Result<bool> {
+    let command = format!("test -x {}", remote_omni.shell_path);
     Ok(ssh_output(target, &command)?.status.success())
 }
 
@@ -596,7 +597,7 @@ fn install_source_description_for(
     }
 
     if local_binary_can_seed_remote {
-        "the current local herdr binary".to_string()
+        "the current local omni binary".to_string()
     } else {
         format!(
             "the {CURRENT_VERSION} release asset for {}",
@@ -652,11 +653,11 @@ enum RemoteServerRestartReason {
 
 fn ensure_remote_server_ready(
     target: &str,
-    remote_herdr: &RemoteHerdr,
+    remote_omni: &RemoteOmni,
     remote_binary_changed: bool,
     live_handoff_enabled: bool,
 ) -> io::Result<()> {
-    let status = remote_server_status(target, remote_herdr)?;
+    let status = remote_server_status(target, remote_omni)?;
     let RemoteServerStatus::Running {
         version,
         protocol,
@@ -676,7 +677,7 @@ fn ensure_remote_server_ready(
         && live_handoff
         && confirm_remote_server_handoff(target, version.as_deref(), protocol, reason)?
     {
-        match live_handoff_remote_server(target, remote_herdr) {
+        match live_handoff_remote_server(target, remote_omni) {
             Ok(()) => return Ok(()),
             Err(err) => {
                 eprintln!("remote live handoff failed: {err}");
@@ -686,7 +687,7 @@ fn ensure_remote_server_ready(
     }
 
     if confirm_remote_server_stop(target, version.as_deref(), protocol, reason)? {
-        stop_remote_server(target, remote_herdr)?;
+        stop_remote_server(target, remote_omni)?;
     }
     Ok(())
 }
@@ -710,21 +711,21 @@ fn remote_server_restart_reason(
 
 fn confirm_remote_install_with_running_server(
     target: &str,
-    remote_herdr: &RemoteHerdr,
+    remote_omni: &RemoteOmni,
     live_handoff_enabled: bool,
 ) -> io::Result<()> {
-    let status = match remote_server_status(target, remote_herdr) {
+    let status = match remote_server_status(target, remote_omni) {
         Ok(status) => status,
         Err(err) => {
             if !io::stdin().is_terminal() {
                 return Err(io::Error::other(format!(
-                    "could not inspect the running remote herdr server on {target} before installing: {err}; run from an interactive terminal to approve updating the remote binary"
+                    "could not inspect the running remote omni server on {target} before installing: {err}; run from an interactive terminal to approve updating the remote binary"
                 )));
             }
             eprintln!(
-                "could not inspect the running remote herdr server on {target} before installing: {err}"
+                "could not inspect the running remote omni server on {target} before installing: {err}"
             );
-            eprint!("continue installing the remote herdr binary? [Y/n] ");
+            eprint!("continue installing the remote omni binary? [Y/n] ");
             io::stderr().flush()?;
 
             let mut answer = String::new();
@@ -733,7 +734,7 @@ fn confirm_remote_install_with_running_server(
             if answer == "n" || answer == "no" {
                 return Err(io::Error::new(
                     io::ErrorKind::Interrupted,
-                    "remote herdr install cancelled",
+                    "remote omni install cancelled",
                 ));
             }
             return Ok(());
@@ -753,13 +754,13 @@ fn confirm_remote_install_with_running_server(
 
     if !io::stdin().is_terminal() {
         return Err(io::Error::other(format!(
-            "remote herdr server on {target} is running v{} protocol {}; run from an interactive terminal to approve updating the remote binary",
+            "remote omni server on {target} is running v{} protocol {}; run from an interactive terminal to approve updating the remote binary",
             version_label(version.as_deref()),
             protocol_label(protocol)
         )));
     }
 
-    eprintln!("remote herdr server on {target} is currently running:");
+    eprintln!("remote omni server on {target} is currently running:");
     eprintln!(
         "  server: v{} protocol {}",
         version_label(version.as_deref()),
@@ -769,7 +770,7 @@ fn confirm_remote_install_with_running_server(
         "this attach will not preserve running panes unless you pass --handoff and the remote server supports live handoff."
     );
     eprintln!();
-    eprint!("continue installing the remote herdr binary? [Y/n] ");
+    eprint!("continue installing the remote omni binary? [Y/n] ");
     io::stderr().flush()?;
 
     let mut answer = String::new();
@@ -778,7 +779,7 @@ fn confirm_remote_install_with_running_server(
     if answer == "n" || answer == "no" {
         return Err(io::Error::new(
             io::ErrorKind::Interrupted,
-            "remote herdr install cancelled",
+            "remote omni install cancelled",
         ));
     }
 
@@ -787,9 +788,9 @@ fn confirm_remote_install_with_running_server(
 
 fn remote_server_status(
     target: &str,
-    remote_herdr: &RemoteHerdr,
+    remote_omni: &RemoteOmni,
 ) -> io::Result<RemoteServerStatus> {
-    let command = format!("{} status server --json", remote_herdr.shell_path);
+    let command = format!("{} status server --json", remote_omni.shell_path);
     let output = ssh_output(target, &command)?;
     if !output.status.success() {
         return Err(command_failed("remote server status failed", &output));
@@ -849,19 +850,19 @@ fn confirm_remote_server_stop(
     if !io::stdin().is_terminal() {
         if reason == RemoteServerRestartReason::ProtocolMismatch {
             return Err(io::Error::other(format!(
-                "remote herdr server on {target} is running with protocol {}, but this client needs protocol {CURRENT_PROTOCOL}; run from an interactive terminal to approve stopping it",
+                "remote omni server on {target} is running with protocol {}, but this client needs protocol {CURRENT_PROTOCOL}; run from an interactive terminal to approve stopping it",
                 protocol_label(protocol)
             )));
         }
 
         eprintln!(
-            "remote herdr server on {target} is still running v{}; it will use v{CURRENT_VERSION} after it restarts.",
+            "remote omni server on {target} is still running v{}; it will use v{CURRENT_VERSION} after it restarts.",
             version_label(version)
         );
         return Ok(false);
     }
 
-    eprintln!("remote herdr server on {target} is currently running:");
+    eprintln!("remote omni server on {target} is currently running:");
     eprintln!(
         "  server: v{} protocol {}",
         version_label(version),
@@ -878,12 +879,12 @@ fn confirm_remote_server_stop(
         }
         RemoteServerRestartReason::BinaryUpdated => {
             eprintln!(
-                "the remote herdr binary was installed or replaced. restart the remote server so it uses the prepared binary."
+                "the remote omni binary was installed or replaced. restart the remote server so it uses the prepared binary."
             );
         }
         RemoteServerRestartReason::VersionMismatch => {
             eprintln!(
-                "the remote server is still running a different herdr version. restart it so it uses the prepared binary."
+                "the remote server is still running a different omni version. restart it so it uses the prepared binary."
             );
         }
     }
@@ -903,7 +904,7 @@ fn confirm_remote_server_stop(
         if reason == RemoteServerRestartReason::ProtocolMismatch {
             return Err(io::Error::new(
                 io::ErrorKind::Interrupted,
-                "remote herdr server stop cancelled",
+                "remote omni server stop cancelled",
             ));
         }
         return Ok(false);
@@ -921,19 +922,19 @@ fn confirm_remote_server_handoff(
     if !io::stdin().is_terminal() {
         if reason == RemoteServerRestartReason::ProtocolMismatch {
             return Err(io::Error::other(format!(
-                "remote herdr server on {target} is running with protocol {}, but this client needs protocol {CURRENT_PROTOCOL}; run from an interactive terminal to approve live handoff or stopping it",
+                "remote omni server on {target} is running with protocol {}, but this client needs protocol {CURRENT_PROTOCOL}; run from an interactive terminal to approve live handoff or stopping it",
                 protocol_label(protocol)
             )));
         }
 
         eprintln!(
-            "remote herdr server on {target} is still running v{}; it will use v{CURRENT_VERSION} after it restarts.",
+            "remote omni server on {target} is still running v{}; it will use v{CURRENT_VERSION} after it restarts.",
             version_label(version)
         );
         return Ok(false);
     }
 
-    eprintln!("remote herdr server on {target} is currently running:");
+    eprintln!("remote omni server on {target} is currently running:");
     eprintln!(
         "  server: v{} protocol {}",
         version_label(version),
@@ -945,17 +946,17 @@ fn confirm_remote_server_handoff(
     match reason {
         RemoteServerRestartReason::ProtocolMismatch => {
             eprintln!(
-                "the remote server protocol does not match this client. herdr will try to hand off live pane processes to the prepared remote server before the old server exits."
+                "the remote server protocol does not match this client. omni will try to hand off live pane processes to the prepared remote server before the old server exits."
             );
         }
         RemoteServerRestartReason::BinaryUpdated => {
             eprintln!(
-                "the remote herdr binary was installed or replaced. herdr will try to hand off live pane processes to the prepared remote server."
+                "the remote omni binary was installed or replaced. omni will try to hand off live pane processes to the prepared remote server."
             );
         }
         RemoteServerRestartReason::VersionMismatch => {
             eprintln!(
-                "the remote server is still running a different herdr version. herdr will try to hand off live pane processes to the prepared remote server."
+                "the remote server is still running a different omni version. omni will try to hand off live pane processes to the prepared remote server."
             );
         }
     }
@@ -969,11 +970,11 @@ fn confirm_remote_server_handoff(
     Ok(answer != "n" && answer != "no")
 }
 
-fn live_handoff_remote_server(target: &str, remote_herdr: &RemoteHerdr) -> io::Result<()> {
+fn live_handoff_remote_server(target: &str, remote_omni: &RemoteOmni) -> io::Result<()> {
     let command = format!(
         "{} server live-handoff --import-exe {} --expected-protocol {CURRENT_PROTOCOL} --expected-version {CURRENT_VERSION}",
-        remote_herdr.shell_path,
-        remote_herdr.shell_path
+        remote_omni.shell_path,
+        remote_omni.shell_path
     );
     let output = ssh_output(target, &command)?;
     if !output.status.success() {
@@ -981,34 +982,34 @@ fn live_handoff_remote_server(target: &str, remote_herdr: &RemoteHerdr) -> io::R
     }
 
     eprintln!(
-        "handed off the remote herdr server on {target}; reconnecting to the prepared server."
+        "handed off the remote omni server on {target}; reconnecting to the prepared server."
     );
     Ok(())
 }
 
-fn stop_remote_server(target: &str, remote_herdr: &RemoteHerdr) -> io::Result<()> {
-    let command = format!("{} server stop", remote_herdr.shell_path);
+fn stop_remote_server(target: &str, remote_omni: &RemoteOmni) -> io::Result<()> {
+    let command = format!("{} server stop", remote_omni.shell_path);
     let output = ssh_output(target, &command)?;
     if !output.status.success() {
         return Err(command_failed("remote server stop failed", &output));
     }
 
-    wait_for_remote_server_shutdown(target, remote_herdr)?;
-    eprintln!("stopped the remote herdr server on {target}; it will restart when the remote client bridge attaches.");
+    wait_for_remote_server_shutdown(target, remote_omni)?;
+    eprintln!("stopped the remote omni server on {target}; it will restart when the remote client bridge attaches.");
     Ok(())
 }
 
-fn wait_for_remote_server_shutdown(target: &str, remote_herdr: &RemoteHerdr) -> io::Result<()> {
+fn wait_for_remote_server_shutdown(target: &str, remote_omni: &RemoteOmni) -> io::Result<()> {
     let deadline = Instant::now() + REMOTE_SERVER_SHUTDOWN_CONFIRM_TIMEOUT;
     loop {
-        if remote_server_status(target, remote_herdr)? == RemoteServerStatus::NotRunning {
+        if remote_server_status(target, remote_omni)? == RemoteServerStatus::NotRunning {
             return Ok(());
         }
         if Instant::now() >= deadline {
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,
                 format!(
-                    "shutdown was requested, but the old remote herdr server on {target} is still responding after {} seconds",
+                    "shutdown was requested, but the old remote omni server on {target} is still responding after {} seconds",
                     REMOTE_SERVER_SHUTDOWN_CONFIRM_TIMEOUT.as_secs()
                 ),
             ));
@@ -1034,13 +1035,19 @@ fn warn_if_remote_bin_not_on_path(target: &str) -> io::Result<()> {
     )?;
     if !output.status.success() {
         eprintln!(
-            "herdr: installed remote binary to ~/.local/bin/herdr, but ~/.local/bin is not in the remote PATH"
+            "omni: installed remote binary to ~/.local/bin/omni, but ~/.local/bin is not in the remote PATH"
         );
     }
     Ok(())
 }
 
 fn download_release_asset(platform: &RemotePlatform) -> io::Result<InstallSource> {
+    if UPDATE_MANIFEST_URL.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "remote install is disabled in this build (no release manifest hosted)",
+        ));
+    }
     let manifest_output = Command::new("curl")
         .args([
             "-sfL",
@@ -1067,25 +1074,25 @@ fn download_release_asset(platform: &RemotePlatform) -> io::Result<InstallSource
     let asset_key = platform.asset_key();
     let release = manifest.release_for_version(CURRENT_VERSION).ok_or_else(|| {
         io::Error::other(format!(
-            "release manifest does not include herdr {CURRENT_VERSION}; build herdr for {} or install it there manually",
+            "release manifest does not include omni {CURRENT_VERSION}; build omni for {} or install it there manually",
             platform.asset_key()
         ))
     })?;
     if let Some(protocol) = release.protocol {
         if protocol != CURRENT_PROTOCOL {
             return Err(io::Error::other(format!(
-                "release manifest has herdr {CURRENT_VERSION} protocol {protocol}, but this client needs protocol {CURRENT_PROTOCOL}; set {REMOTE_BINARY_ENV_VAR}=target/release/herdr or install a matching herdr on the remote host manually"
+                "release manifest has omni {CURRENT_VERSION} protocol {protocol}, but this client needs protocol {CURRENT_PROTOCOL}; set {REMOTE_BINARY_ENV_VAR}=target/release/omni or install a matching omni on the remote host manually"
             )));
         }
     }
     let url = release.assets.get(&asset_key).ok_or_else(|| {
         io::Error::other(format!(
-            "no {asset_key} binary in the release manifest for herdr {CURRENT_VERSION}"
+            "no {asset_key} binary in the release manifest for omni {CURRENT_VERSION}"
         ))
     })?;
 
     let dir = private_download_dir(&asset_key)?;
-    let path = dir.join("herdr.tmp");
+    let path = dir.join("omni.tmp");
     let status = Command::new("curl")
         .args(["-sfL", "--max-time", "120", "-o"])
         .arg(&path)
@@ -1104,7 +1111,7 @@ fn private_download_dir(asset_key: &str) -> io::Result<PathBuf> {
     let base = std::env::temp_dir();
     for attempt in 0..100 {
         let dir = base.join(format!(
-            "herdr-remote-{}-{}-{attempt}",
+            "omni-remote-{}-{}-{attempt}",
             std::process::id(),
             asset_key
         ));
@@ -1117,29 +1124,29 @@ fn private_download_dir(asset_key: &str) -> io::Result<PathBuf> {
 
     Err(io::Error::new(
         io::ErrorKind::AlreadyExists,
-        "failed to create private herdr remote download directory",
+        "failed to create private omni remote download directory",
     ))
 }
 
 fn confirm_remote_install(
     target: &str,
-    remote_herdr: &RemoteHerdr,
+    remote_omni: &RemoteOmni,
     source_description: &str,
 ) -> io::Result<()> {
     if !io::stdin().is_terminal() {
         return Err(io::Error::other(format!(
-            "matching remote herdr {CURRENT_VERSION} is not installed at {}; run from an interactive terminal to approve installation",
-            remote_herdr.shell_path
+            "matching remote omni {CURRENT_VERSION} is not installed at {}; run from an interactive terminal to approve installation",
+            remote_omni.shell_path
         )));
     }
 
     eprintln!(
-        "matching herdr {CURRENT_VERSION} is not installed on {target} for {}.",
-        remote_herdr.platform.asset_key()
+        "matching omni {CURRENT_VERSION} is not installed on {target} for {}.",
+        remote_omni.platform.asset_key()
     );
     eprint!(
         "Install {} to {}? [Y/n] ",
-        source_description, remote_herdr.shell_path
+        source_description, remote_omni.shell_path
     );
     io::stderr().flush()?;
 
@@ -1149,16 +1156,16 @@ fn confirm_remote_install(
     if answer == "n" || answer == "no" {
         return Err(io::Error::new(
             io::ErrorKind::Interrupted,
-            "remote herdr installation cancelled",
+            "remote omni installation cancelled",
         ));
     }
 
     Ok(())
 }
 
-fn install_remote_herdr(
+fn install_remote_omni(
     target: &str,
-    remote_herdr: &RemoteHerdr,
+    remote_omni: &RemoteOmni,
     source_path: &Path,
 ) -> io::Result<()> {
     let script = format!(
@@ -1170,7 +1177,7 @@ cat > "$tmp"
 chmod 755 "$tmp"
 mv "$tmp" "$dest"
 "#,
-        install_suffix = remote_herdr.install_suffix
+        install_suffix = remote_omni.install_suffix
     );
 
     let mut child = Command::new("ssh")
@@ -1212,8 +1219,8 @@ fn ssh_output(target: &str, command: &str) -> io::Result<Output> {
         .output()
 }
 
-fn remote_bridge_command(remote_herdr: &RemoteHerdr, session_name: &str) -> String {
-    let mut command = format!("exec {}", remote_herdr.shell_path);
+fn remote_bridge_command(remote_omni: &RemoteOmni, session_name: &str) -> String {
+    let mut command = format!("exec {}", remote_omni.shell_path);
     if session_name != crate::session::DEFAULT_SESSION_NAME {
         command.push_str(" --session ");
         command.push_str(&shell_quote(session_name));
@@ -1229,7 +1236,7 @@ fn reattach_command(
     keybindings: RemoteKeybindings,
     live_handoff: bool,
 ) -> String {
-    let program = if program.is_empty() { "herdr" } else { program };
+    let program = if program.is_empty() { "omni" } else { program };
     let mut command = format!("{} --remote {}", shell_quote(program), shell_quote(target));
     if keybindings != RemoteKeybindings::Local {
         command.push_str(" --remote-keybindings ");
@@ -1280,7 +1287,7 @@ struct SshStdioBridge {
 impl SshStdioBridge {
     fn start(
         target: String,
-        remote_herdr: RemoteHerdr,
+        remote_omni: RemoteOmni,
         local_socket: PathBuf,
         session_name: String,
     ) -> io::Result<Self> {
@@ -1297,21 +1304,21 @@ impl SshStdioBridge {
                     Ok((stream, _addr)) => {
                         if let Err(err) = stream.set_nonblocking(false) {
                             eprintln!(
-                                "herdr: remote bridge failed to prepare client socket: {err}"
+                                "omni: remote bridge failed to prepare client socket: {err}"
                             );
                             continue;
                         }
                         if let Err(err) =
-                            bridge_connection(stream, &target, &remote_herdr, &session_name)
+                            bridge_connection(stream, &target, &remote_omni, &session_name)
                         {
-                            eprintln!("herdr: remote bridge failed: {err}");
+                            eprintln!("omni: remote bridge failed: {err}");
                         }
                     }
                     Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
                         thread::sleep(BRIDGE_ACCEPT_POLL);
                     }
                     Err(err) => {
-                        eprintln!("herdr: remote bridge listener failed: {err}");
+                        eprintln!("omni: remote bridge listener failed: {err}");
                         break;
                     }
                 }
@@ -1339,14 +1346,14 @@ impl Drop for SshStdioBridge {
 fn bridge_connection(
     stream: UnixStream,
     target: &str,
-    remote_herdr: &RemoteHerdr,
+    remote_omni: &RemoteOmni,
     session_name: &str,
 ) -> io::Result<()> {
     let mut command = Command::new("ssh");
     command
         .arg("-T")
         .arg(target)
-        .arg(remote_bridge_command(remote_herdr, session_name));
+        .arg(remote_bridge_command(remote_omni, session_name));
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -1418,7 +1425,7 @@ fn run_client_process(
             crate::server::socket_paths::CLIENT_SOCKET_PATH_ENV_VAR,
             local_socket,
         )
-        .env("HERDR_RENDER_ENCODING", "terminal-ansi")
+        .env("OMNI_RENDER_ENCODING", "terminal-ansi")
         .env(REATTACH_COMMAND_ENV_VAR, reattach_command)
         .env(REMOTE_KEYBINDINGS_ENV_VAR, keybindings.as_str())
         .env_remove(crate::api::SOCKET_PATH_ENV_VAR)
@@ -1444,7 +1451,7 @@ fn local_forward_socket_path(target: &str, session_name: &str) -> PathBuf {
 
     let tmpdir = std::env::temp_dir();
     let readable = tmpdir.join(format!(
-        "herdr-remote-{pid}-{target_clean}-{session_clean}.sock"
+        "omni-remote-{pid}-{target_clean}-{session_clean}.sock"
     ));
     if fits_unix_socket_path(&readable) {
         return readable;
@@ -1458,7 +1465,7 @@ fn local_forward_socket_path(target: &str, session_name: &str) -> PathBuf {
     // the prefix is kept only for debuggability.
     let target_prefix: String = target_clean.chars().take(8).collect();
     let hash = short_socket_hash(target, session_name);
-    let short_name = format!("herdr-r-{pid}-{target_prefix}-{hash}.sock");
+    let short_name = format!("omni-r-{pid}-{target_prefix}-{hash}.sock");
     let short_in_tmp = tmpdir.join(&short_name);
     if fits_unix_socket_path(&short_in_tmp) {
         return short_in_tmp;
@@ -1508,16 +1515,16 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let socket = std::env::temp_dir().join(format!(
-            "herdr-bridge-permissions-test-{}.sock",
+            "omni-bridge-permissions-test-{}.sock",
             std::process::id()
         ));
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "linux",
             arch: "x86_64",
         });
         let bridge = SshStdioBridge::start(
             "example".to_string(),
-            remote_herdr,
+            remote_omni,
             socket.clone(),
             "default".to_string(),
         )
@@ -1533,13 +1540,13 @@ mod tests {
     #[test]
     fn extract_remote_args_removes_space_form() {
         let args = vec![
-            "herdr".into(),
+            "omni".into(),
             "--remote".into(),
             "dev".into(),
             "--help".into(),
         ];
         let (cleaned, remote) = extract_remote_args(&args).unwrap();
-        assert_eq!(cleaned, vec!["herdr", "--help"]);
+        assert_eq!(cleaned, vec!["omni", "--help"]);
         let remote = remote.unwrap();
         assert_eq!(remote.target, "dev");
         assert_eq!(remote.keybindings, RemoteKeybindings::Local);
@@ -1547,9 +1554,9 @@ mod tests {
 
     #[test]
     fn extract_remote_args_removes_equals_form() {
-        let args = vec!["herdr".into(), "--remote=user@host".into()];
+        let args = vec!["omni".into(), "--remote=user@host".into()];
         let (cleaned, remote) = extract_remote_args(&args).unwrap();
-        assert_eq!(cleaned, vec!["herdr"]);
+        assert_eq!(cleaned, vec!["omni"]);
         let remote = remote.unwrap();
         assert_eq!(remote.target, "user@host");
         assert_eq!(remote.keybindings, RemoteKeybindings::Local);
@@ -1558,13 +1565,13 @@ mod tests {
     #[test]
     fn extract_remote_args_accepts_remote_keybindings_server() {
         let args = vec![
-            "herdr".into(),
+            "omni".into(),
             "--remote".into(),
             "dev".into(),
             "--remote-keybindings=server".into(),
         ];
         let (cleaned, remote) = extract_remote_args(&args).unwrap();
-        assert_eq!(cleaned, vec!["herdr"]);
+        assert_eq!(cleaned, vec!["omni"]);
         let remote = remote.unwrap();
         assert_eq!(remote.target, "dev");
         assert_eq!(remote.keybindings, RemoteKeybindings::Server);
@@ -1573,23 +1580,23 @@ mod tests {
     #[test]
     fn extract_remote_args_accepts_remote_keybindings_space_form() {
         let args = vec![
-            "herdr".into(),
+            "omni".into(),
             "--remote=dev".into(),
             "--remote-keybindings".into(),
             "server".into(),
         ];
         let (cleaned, remote) = extract_remote_args(&args).unwrap();
-        assert_eq!(cleaned, vec!["herdr"]);
+        assert_eq!(cleaned, vec!["omni"]);
         assert_eq!(remote.unwrap().keybindings, RemoteKeybindings::Server);
     }
 
     #[test]
     fn extract_remote_args_accepts_explicit_handoff() {
-        let args = vec!["herdr".into(), "--remote=dev".into(), "--handoff".into()];
+        let args = vec!["omni".into(), "--remote=dev".into(), "--handoff".into()];
 
         let (cleaned, remote) = extract_remote_args(&args).unwrap();
 
-        assert_eq!(cleaned, vec!["herdr"]);
+        assert_eq!(cleaned, vec!["omni"]);
         let remote = remote.unwrap();
         assert_eq!(remote.target, "dev");
         assert!(remote.live_handoff);
@@ -1597,7 +1604,7 @@ mod tests {
 
     #[test]
     fn extract_remote_args_preserves_handoff_without_remote() {
-        let args = vec!["herdr".into(), "update".into(), "--handoff".into()];
+        let args = vec!["omni".into(), "update".into(), "--handoff".into()];
 
         let (cleaned, remote) = extract_remote_args(&args).unwrap();
 
@@ -1607,7 +1614,7 @@ mod tests {
 
     #[test]
     fn extract_remote_args_rejects_remote_keybindings_without_remote() {
-        let args = vec!["herdr".into(), "--remote-keybindings=server".into()];
+        let args = vec!["omni".into(), "--remote-keybindings=server".into()];
         let err = extract_remote_args(&args).unwrap_err();
         assert_eq!(err, "--remote-keybindings requires --remote");
     }
@@ -1615,7 +1622,7 @@ mod tests {
     #[test]
     fn extract_remote_args_rejects_duplicate_remote_keybindings() {
         let args = vec![
-            "herdr".into(),
+            "omni".into(),
             "--remote=dev".into(),
             "--remote-keybindings=local".into(),
             "--remote-keybindings=server".into(),
@@ -1626,14 +1633,14 @@ mod tests {
 
     #[test]
     fn extract_remote_args_requires_value() {
-        let args = vec!["herdr".into(), "--remote".into()];
+        let args = vec!["omni".into(), "--remote".into()];
         let err = extract_remote_args(&args).unwrap_err();
         assert_eq!(err, "missing value for --remote");
     }
 
     #[test]
     fn extract_remote_args_rejects_empty_value() {
-        let args = vec!["herdr".into(), "--remote=".into()];
+        let args = vec!["omni".into(), "--remote=".into()];
         let err = extract_remote_args(&args).unwrap_err();
         assert_eq!(err, "missing value for --remote");
     }
@@ -1641,7 +1648,7 @@ mod tests {
     #[test]
     fn extract_remote_args_rejects_duplicate_values() {
         let args = vec![
-            "herdr".into(),
+            "omni".into(),
             "--remote=dev".into(),
             "--remote=prod".into(),
         ];
@@ -1651,7 +1658,7 @@ mod tests {
 
     #[test]
     fn extract_remote_args_rejects_option_like_target() {
-        let args = vec!["herdr".into(), "--remote".into(), "-oProxyCommand=x".into()];
+        let args = vec!["omni".into(), "--remote".into(), "-oProxyCommand=x".into()];
         let err = extract_remote_args(&args).unwrap_err();
         assert_eq!(err, "--remote target must not start with '-'");
     }
@@ -1682,165 +1689,165 @@ mod tests {
     fn reattach_command_includes_remote_and_session() {
         assert_eq!(
             reattach_command(
-                "target/release/herdr",
+                "target/release/omni",
                 "user@host",
                 "work",
                 RemoteKeybindings::Local,
                 false,
             ),
-            "target/release/herdr --remote user@host --session work"
+            "target/release/omni --remote user@host --session work"
         );
         assert_eq!(
             reattach_command(
-                "herdr",
+                "omni",
                 "host name",
                 crate::session::DEFAULT_SESSION_NAME,
                 RemoteKeybindings::Local,
                 false,
             ),
-            "herdr --remote 'host name'"
+            "omni --remote 'host name'"
         );
         assert_eq!(
             reattach_command(
-                "herdr",
+                "omni",
                 "host",
                 crate::session::DEFAULT_SESSION_NAME,
                 RemoteKeybindings::Server,
                 false,
             ),
-            "herdr --remote host --remote-keybindings server"
+            "omni --remote host --remote-keybindings server"
         );
         assert_eq!(
             reattach_command(
-                "herdr",
+                "omni",
                 "host",
                 crate::session::DEFAULT_SESSION_NAME,
                 RemoteKeybindings::Local,
                 true,
             ),
-            "herdr --remote host --handoff"
+            "omni --remote host --handoff"
         );
     }
 
     #[test]
     fn remote_bridge_command_uses_installed_binary() {
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "linux",
             arch: "x86_64",
         });
         assert_eq!(
-            remote_bridge_command(&remote_herdr, crate::session::DEFAULT_SESSION_NAME),
-            "exec \"$HOME/.local/bin/herdr\" remote-client-bridge"
+            remote_bridge_command(&remote_omni, crate::session::DEFAULT_SESSION_NAME),
+            "exec \"$HOME/.local/bin/omni\" remote-client-bridge"
         );
     }
 
     #[test]
     fn remote_path_probe_uses_path_binary_when_version_matches() {
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "linux",
             arch: "x86_64",
         });
-        let stdout = matching_path_probe_stdout("/usr/bin/herdr");
-        let remote_herdr =
-            remote_herdr_from_path_probe(&remote_herdr, &stdout).expect("matching path binary");
+        let stdout = matching_path_probe_stdout("/usr/bin/omni");
+        let remote_omni =
+            remote_omni_from_path_probe(&remote_omni, &stdout).expect("matching path binary");
 
         assert_eq!(
-            remote_bridge_command(&remote_herdr, crate::session::DEFAULT_SESSION_NAME),
-            "exec /usr/bin/herdr remote-client-bridge"
+            remote_bridge_command(&remote_omni, crate::session::DEFAULT_SESSION_NAME),
+            "exec /usr/bin/omni remote-client-bridge"
         );
     }
 
     #[test]
     fn remote_path_probe_quotes_discovered_binary() {
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "linux",
             arch: "x86_64",
         });
-        let stdout = matching_path_probe_stdout("/opt/herdr bin/herdr");
-        let remote_herdr =
-            remote_herdr_from_path_probe(&remote_herdr, &stdout).expect("matching path binary");
+        let stdout = matching_path_probe_stdout("/opt/omni bin/omni");
+        let remote_omni =
+            remote_omni_from_path_probe(&remote_omni, &stdout).expect("matching path binary");
 
         assert_eq!(
-            remote_bridge_command(&remote_herdr, crate::session::DEFAULT_SESSION_NAME),
-            "exec '/opt/herdr bin/herdr' remote-client-bridge"
+            remote_bridge_command(&remote_omni, crate::session::DEFAULT_SESSION_NAME),
+            "exec '/opt/omni bin/omni' remote-client-bridge"
         );
     }
 
     #[test]
     fn remote_path_probe_uses_macos_path_binary_when_version_matches() {
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "macos",
             arch: "aarch64",
         });
-        let stdout = matching_path_probe_stdout("/opt/homebrew/bin/herdr");
-        let remote_herdr =
-            remote_herdr_from_path_probe(&remote_herdr, &stdout).expect("matching path binary");
+        let stdout = matching_path_probe_stdout("/opt/homebrew/bin/omni");
+        let remote_omni =
+            remote_omni_from_path_probe(&remote_omni, &stdout).expect("matching path binary");
 
         assert_eq!(
-            remote_bridge_command(&remote_herdr, crate::session::DEFAULT_SESSION_NAME),
-            "exec /opt/homebrew/bin/herdr remote-client-bridge"
+            remote_bridge_command(&remote_omni, crate::session::DEFAULT_SESSION_NAME),
+            "exec /opt/homebrew/bin/omni remote-client-bridge"
         );
-        assert_eq!(remote_herdr.platform.asset_key(), "macos-aarch64");
+        assert_eq!(remote_omni.platform.asset_key(), "macos-aarch64");
     }
 
     #[test]
     fn remote_path_probe_quotes_single_quotes_in_discovered_binary() {
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "linux",
             arch: "x86_64",
         });
-        let stdout = matching_path_probe_stdout("/opt/herdr's/bin/herdr");
-        let remote_herdr =
-            remote_herdr_from_path_probe(&remote_herdr, &stdout).expect("matching path binary");
+        let stdout = matching_path_probe_stdout("/opt/omni's/bin/omni");
+        let remote_omni =
+            remote_omni_from_path_probe(&remote_omni, &stdout).expect("matching path binary");
 
         assert_eq!(
-            remote_bridge_command(&remote_herdr, crate::session::DEFAULT_SESSION_NAME),
-            "exec '/opt/herdr'\\''s/bin/herdr' remote-client-bridge"
+            remote_bridge_command(&remote_omni, crate::session::DEFAULT_SESSION_NAME),
+            "exec '/opt/omni'\\''s/bin/omni' remote-client-bridge"
         );
     }
 
     #[test]
     fn remote_path_probe_ignores_version_mismatch() {
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "linux",
             arch: "x86_64",
         });
-        let remote_herdr = remote_herdr_from_path_probe(
-            &remote_herdr,
-            &format!("/usr/bin/herdr\nherdr 0.0.0\n{{\"protocol\":{CURRENT_PROTOCOL}}}\n"),
+        let remote_omni = remote_omni_from_path_probe(
+            &remote_omni,
+            &format!("/usr/bin/omni\nomni 0.0.0\n{{\"protocol\":{CURRENT_PROTOCOL}}}\n"),
         );
 
-        assert!(remote_herdr.is_none());
+        assert!(remote_omni.is_none());
     }
 
     #[test]
     fn remote_path_probe_ignores_relative_paths() {
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "linux",
             arch: "x86_64",
         });
-        let stdout = matching_path_probe_stdout("bin/herdr");
-        let remote_herdr = remote_herdr_from_path_probe(&remote_herdr, &stdout);
+        let stdout = matching_path_probe_stdout("bin/omni");
+        let remote_omni = remote_omni_from_path_probe(&remote_omni, &stdout);
 
-        assert!(remote_herdr.is_none());
+        assert!(remote_omni.is_none());
     }
 
     #[test]
     fn remote_path_probe_ignores_protocol_mismatch() {
-        let remote_herdr = RemoteHerdr::for_platform(RemotePlatform {
+        let remote_omni = RemoteOmni::for_platform(RemotePlatform {
             os: "linux",
             arch: "x86_64",
         });
-        let stdout = format!("/usr/bin/herdr\nherdr {CURRENT_VERSION}\n{{\"protocol\":0}}\n");
-        let remote_herdr = remote_herdr_from_path_probe(&remote_herdr, &stdout);
+        let stdout = format!("/usr/bin/omni\nomni {CURRENT_VERSION}\n{{\"protocol\":0}}\n");
+        let remote_omni = remote_omni_from_path_probe(&remote_omni, &stdout);
 
-        assert!(remote_herdr.is_none());
+        assert!(remote_omni.is_none());
     }
 
     #[test]
     fn parse_client_status_json_reads_protocol() {
         assert_eq!(
-            parse_client_status_json(r#"{"version":"x","protocol":8,"binary":"/bin/herdr"}"#)
+            parse_client_status_json(r#"{"version":"x","protocol":8,"binary":"/bin/omni"}"#)
                 .map(|status| status.protocol),
             Some(8)
         );
@@ -2047,8 +2054,8 @@ mod tests {
             arch: "aarch64",
         };
         assert_eq!(
-            install_source_description_for(&platform, Some(Path::new("/tmp/herdr-aarch64")), false),
-            "HERDR_REMOTE_BINARY (/tmp/herdr-aarch64)"
+            install_source_description_for(&platform, Some(Path::new("/tmp/omni-aarch64")), false),
+            "OMNI_REMOTE_BINARY (/tmp/omni-aarch64)"
         );
     }
 
@@ -2058,7 +2065,7 @@ mod tests {
 
         assert_eq!(
             install_source_description_for(&platform, None, true),
-            "the current local herdr binary"
+            "the current local omni binary"
         );
     }
 
@@ -2081,14 +2088,14 @@ mod tests {
             os: "linux",
             arch: "aarch64",
         };
-        let source = resolve_install_source(&platform, Some(PathBuf::from("/tmp/herdr-aarch64")))
+        let source = resolve_install_source(&platform, Some(PathBuf::from("/tmp/omni-aarch64")))
             .expect("override source");
-        assert_eq!(source.path, PathBuf::from("/tmp/herdr-aarch64"));
+        assert_eq!(source.path, PathBuf::from("/tmp/omni-aarch64"));
         assert!(source.temporary_dir.is_none());
     }
 
     fn matching_path_probe_stdout(path: &str) -> String {
-        format!("{path}\nherdr {CURRENT_VERSION}\n{{\"protocol\":{CURRENT_PROTOCOL}}}\n")
+        format!("{path}\nomni {CURRENT_VERSION}\n{{\"protocol\":{CURRENT_PROTOCOL}}}\n")
     }
 
     fn remote_env_lock() -> &'static std::sync::Mutex<()> {
@@ -2113,7 +2120,7 @@ mod tests {
             .unwrap_or("")
             .to_string();
         assert!(
-            filename.starts_with("herdr-remote-"),
+            filename.starts_with("omni-remote-"),
             "expected readable name, got {filename}"
         );
         assert!(filename.contains("-dev-default."), "got {filename}");
@@ -2170,7 +2177,7 @@ mod tests {
         assert!(fits, "fallback path still overflows: {}", path.display());
         assert_eq!(parent.as_deref(), Some(Path::new("/tmp")));
         assert!(
-            filename.starts_with("herdr-r-"),
+            filename.starts_with("omni-r-"),
             "expected hashed fallback, got {filename}"
         );
     }
@@ -2178,12 +2185,12 @@ mod tests {
     #[test]
     fn install_source_cleanup_removes_temporary_directory() {
         let dir = std::env::temp_dir().join(format!(
-            "herdr-install-source-cleanup-test-{}",
+            "omni-install-source-cleanup-test-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir(&dir).expect("create temp dir");
-        let path = dir.join("herdr.tmp");
+        let path = dir.join("omni.tmp");
         fs::write(&path, b"test").expect("write temp file");
 
         InstallSource::temporary(path, dir.clone()).cleanup();

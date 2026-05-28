@@ -12,7 +12,7 @@
 let
   manifest = lib.importTOML ../Cargo.toml;
   zigDeps = callPackage ../vendor/libghostty-vt/build.zig.zon.nix {
-    name = "herdr-libghostty-vt-zig-cache";
+    name = "omni-libghostty-vt-zig-cache";
     inherit zstd;
     linkFarm = name: entries:
       runCommand name { } ''
@@ -24,7 +24,7 @@ let
   };
 in
 rustPlatform.buildRustPackage {
-  pname = "herdr";
+  pname = "omni";
   version = manifest.package.version;
 
   src = lib.fileset.toSource {
@@ -43,7 +43,7 @@ rustPlatform.buildRustPackage {
   };
 
   cargoHash = "sha256-yRT31RnfjSQy5bxFXVvM9zRM59WAPrBozu3S2tag6s8=";
-  cargoDepsName = "herdr";
+  cargoDepsName = "omni";
 
   nativeBuildInputs = [
     git
@@ -69,9 +69,9 @@ rustPlatform.buildRustPackage {
 
   meta = {
     description = "Terminal workspace manager for AI coding agents";
-    homepage = "https://herdr.dev";
+    homepage = "https://github.com/RyanNg1403/omni";
     license = lib.licenses.agpl3Plus;
-    mainProgram = "herdr";
+    mainProgram = "omni";
     platforms = lib.platforms.linux ++ lib.platforms.darwin;
   };
 }

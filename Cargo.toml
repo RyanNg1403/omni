@@ -1,15 +1,15 @@
 [package]
-name = "herdr"
+name = "omni"
 version = "0.6.4"
 edition = "2021"
 build = "build.rs"
-description = "terminal workspace manager for AI coding agents"
+description = "terminal workspace manager for AI coding agents (omni, a fork of herdr)"
 license = "AGPL-3.0-or-later"
-repository = "https://github.com/ogulcancelik/herdr"
-homepage = "https://herdr.dev"
+repository = "https://github.com/RyanNg1403/omni"
+homepage = "https://github.com/RyanNg1403/omni"
 keywords = ["terminal", "tui", "ai", "agents", "multiplexer"]
 categories = ["command-line-utilities"]
-include = ["src/**/*", "assets/sounds/*", "README.md", "LICENSE", "Cargo.toml"]
+include = ["src/**/*", "assets/sounds/*", "README.md", "LICENSE", "NOTICE", "Cargo.toml"]
 
 [dependencies]
 base64 = "0.22.1"

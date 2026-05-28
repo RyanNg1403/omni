@@ -1,12 +1,12 @@
-// installed by herdr
-// managed by herdr; reinstalling or updating the integration overwrites this file.
+// installed by omni
+// managed by omni; reinstalling or updating the integration overwrites this file.
 // add custom hooks/plugins beside this file instead of editing it.
-// HERDR_INTEGRATION_ID=opencode
-// HERDR_INTEGRATION_VERSION=2
+// OMNI_INTEGRATION_ID=opencode
+// OMNI_INTEGRATION_VERSION=2
 
 import net from "node:net";
 
-const SOURCE = "herdr:opencode";
+const SOURCE = "omni:opencode";
 let reportSeq = Date.now() * 1000;
 
 function nextReportSeq() {
@@ -21,8 +21,8 @@ function sessionIDFromProperties(properties) {
 }
 
 function reportState(action, sessionID) {
-  const paneId = process.env.HERDR_PANE_ID;
-  const socketPath = process.env.HERDR_SOCKET_PATH;
+  const paneId = process.env.OMNI_PANE_ID;
+  const socketPath = process.env.OMNI_SOCKET_PATH;
 
   if (!paneId || !socketPath) {
     return Promise.resolve();
@@ -71,11 +71,11 @@ function reportState(action, sessionID) {
   });
 }
 
-export const HerdrAgentStatePlugin = async () => {
+export const OmniAgentStatePlugin = async () => {
   if (
-    process.env.HERDR_ENV !== "1" ||
-    !process.env.HERDR_SOCKET_PATH ||
-    !process.env.HERDR_PANE_ID
+    process.env.OMNI_ENV !== "1" ||
+    !process.env.OMNI_SOCKET_PATH ||
+    !process.env.OMNI_PANE_ID
   ) {
     return {};
   }

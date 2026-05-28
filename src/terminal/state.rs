@@ -875,7 +875,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -893,7 +893,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:custom".into(),
+            "omni:custom".into(),
             "custom-agent".into(),
             AgentState::Working,
             None,
@@ -911,7 +911,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Working,
             None,
@@ -936,7 +936,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Working,
             None,
@@ -961,7 +961,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         terminal.set_hook_authority(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Blocked,
             None,
@@ -1009,7 +1009,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority_with_custom_status(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Working,
             None,
@@ -1043,7 +1043,7 @@ mod tests {
             now,
         );
         terminal.set_hook_authority_with_custom_status_at(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Working,
             None,
@@ -1095,7 +1095,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Claude), AgentState::Working);
         terminal.set_hook_authority_with_custom_status_at(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Working,
             None,
@@ -1115,7 +1115,7 @@ mod tests {
         );
 
         terminal.set_hook_authority_with_custom_status_at(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Working,
             None,
@@ -1144,7 +1144,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Claude), AgentState::Idle);
         terminal.set_hook_authority_with_custom_status_at(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Idle,
             None,
@@ -1176,7 +1176,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Claude), AgentState::Working);
         terminal.set_hook_authority(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Blocked,
             None,
@@ -1201,7 +1201,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         terminal.set_hook_authority(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Working,
             None,
@@ -1226,7 +1226,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Grok), AgentState::Working);
         let change = terminal.set_hook_authority(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Blocked,
             None,
@@ -1244,7 +1244,7 @@ mod tests {
     fn detected_agent_clears_conflicting_known_hook_authority() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Blocked,
             None,
@@ -1284,7 +1284,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:custom".into(),
+            "omni:custom".into(),
             "custom-agent".into(),
             AgentState::Working,
             None,
@@ -1304,7 +1304,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:opencode".into(),
+            "omni:opencode".into(),
             "opencode".into(),
             AgentState::Idle,
             None,
@@ -1325,7 +1325,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         terminal.set_hook_authority(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Working,
             None,
@@ -1345,7 +1345,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         terminal.set_hook_authority(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Working,
             None,
@@ -1380,7 +1380,7 @@ mod tests {
             observed,
         );
         terminal.set_hook_authority_with_custom_status_at(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Working,
             None,
@@ -1418,7 +1418,7 @@ mod tests {
             observed,
         );
         terminal.set_hook_authority_with_custom_status_at(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Working,
             None,
@@ -1428,7 +1428,7 @@ mod tests {
             observed,
         );
         terminal.set_hook_authority_with_custom_status_at(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Working,
             None,
@@ -1459,7 +1459,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:codex".into(),
+            "omni:codex".into(),
             "codex".into(),
             AgentState::Idle,
             None,
@@ -1479,14 +1479,14 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
             None,
         );
 
-        terminal.release_agent("herdr:pi", "pi", None);
+        terminal.release_agent("omni:pi", "pi", None);
 
         assert!(terminal.hook_authority.is_none());
         assert_eq!(terminal.detected_agent, None);
@@ -1498,7 +1498,7 @@ mod tests {
     fn stale_hook_report_sequence_is_ignored_for_same_source() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -1506,7 +1506,7 @@ mod tests {
         );
 
         let change = terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Idle,
             None,
@@ -1526,7 +1526,7 @@ mod tests {
         let mut terminal = test_terminal();
         let mutation = terminal
             .set_hook_authority_with_session_ref(
-                "herdr:pi".into(),
+                "omni:pi".into(),
                 "pi".into(),
                 AgentState::Working,
                 None,
@@ -1554,7 +1554,7 @@ mod tests {
     fn stale_hook_report_cannot_overwrite_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -1564,7 +1564,7 @@ mod tests {
         );
 
         let mutation = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -1588,7 +1588,7 @@ mod tests {
     fn accepted_hook_report_without_session_ref_clears_previous_ref() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -1599,7 +1599,7 @@ mod tests {
 
         let mutation = terminal
             .set_hook_authority_with_session_ref(
-                "herdr:pi".into(),
+                "omni:pi".into(),
                 "pi".into(),
                 AgentState::Working,
                 None,
@@ -1623,14 +1623,14 @@ mod tests {
     fn accepted_hook_report_marks_changed_when_session_identity_changes() {
         let mut terminal = test_terminal();
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:opencode".into(),
+            source: "omni:opencode".into(),
             agent: "opencode".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("same-session").unwrap(),
         });
 
         let mutation = terminal
             .set_hook_authority_with_session_ref(
-                "herdr:hermes".into(),
+                "omni:hermes".into(),
                 "hermes".into(),
                 AgentState::Working,
                 None,
@@ -1647,7 +1647,7 @@ mod tests {
     fn clearing_hook_authority_clears_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -1657,7 +1657,7 @@ mod tests {
         );
 
         let mutation = terminal
-            .clear_hook_authority_with_mutation(Some("herdr:pi"), Some(21))
+            .clear_hook_authority_with_mutation(Some("omni:pi"), Some(21))
             .expect("accepted clear");
 
         assert!(mutation.session_ref_changed);
@@ -1668,7 +1668,7 @@ mod tests {
     fn release_agent_clears_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -1678,7 +1678,7 @@ mod tests {
         );
 
         let mutation = terminal
-            .release_agent_with_mutation("herdr:pi", "pi", Some(21))
+            .release_agent_with_mutation("omni:pi", "pi", Some(21))
             .expect("accepted release");
 
         assert!(mutation.session_ref_changed);
@@ -1689,13 +1689,13 @@ mod tests {
     fn release_agent_clears_matching_restored_session_ref_before_detection() {
         let mut terminal = test_terminal();
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:hermes".into(),
+            source: "omni:hermes".into(),
             agent: "hermes".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("hermes-session").unwrap(),
         });
 
         let mutation = terminal
-            .release_agent_with_mutation("herdr:hermes", "hermes", Some(21))
+            .release_agent_with_mutation("omni:hermes", "hermes", Some(21))
             .expect("accepted release");
 
         assert!(mutation.session_ref_changed);
@@ -1707,7 +1707,7 @@ mod tests {
     fn detected_conflict_clears_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority_with_session_ref(
-            "herdr:claude".into(),
+            "omni:claude".into(),
             "claude".into(),
             AgentState::Working,
             None,
@@ -1728,7 +1728,7 @@ mod tests {
         let mut terminal = test_terminal();
         terminal.set_detected_state(Some(Agent::Hermes), AgentState::Idle);
         terminal.set_hook_authority_with_session_ref(
-            "herdr:hermes".into(),
+            "omni:hermes".into(),
             "hermes".into(),
             AgentState::Working,
             None,
@@ -1749,7 +1749,7 @@ mod tests {
     fn detected_agent_disappearance_clears_matching_persisted_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:opencode".into(),
+            source: "omni:opencode".into(),
             agent: "opencode".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("opencode-session").unwrap(),
         });
@@ -1768,7 +1768,7 @@ mod tests {
     fn initial_unknown_detection_preserves_restored_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:hermes".into(),
+            source: "omni:hermes".into(),
             agent: "hermes".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("hermes-session").unwrap(),
         });
@@ -1782,7 +1782,7 @@ mod tests {
     fn unsequenced_hook_report_is_ignored_after_source_uses_sequence() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -1790,7 +1790,7 @@ mod tests {
         );
 
         let change = terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Idle,
             None,
@@ -1805,14 +1805,14 @@ mod tests {
     fn stale_release_sequence_is_ignored_for_same_source() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
             Some(20),
         );
 
-        let change = terminal.release_agent("herdr:pi", "pi", Some(19));
+        let change = terminal.release_agent("omni:pi", "pi", Some(19));
 
         assert!(change.is_none());
         assert_eq!(terminal.state, AgentState::Working);
@@ -1823,7 +1823,7 @@ mod tests {
     fn stale_clear_all_sequence_is_checked_against_current_authority_source() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
@@ -1841,7 +1841,7 @@ mod tests {
     fn same_sequence_from_different_sources_is_independent() {
         let mut terminal = test_terminal();
         terminal.set_hook_authority(
-            "herdr:pi".into(),
+            "omni:pi".into(),
             "pi".into(),
             AgentState::Working,
             None,
