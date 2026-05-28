@@ -1,4 +1,4 @@
-# skill/agents.md — the `omni agent` subcommand family
+# references/agents.md — the `omni agent` subcommand family
 
 The `omni agent` group targets **agents** (the running process inside a pane) rather than the pane itself. It's the right entry point for orchestration that should survive layout changes.
 

@@ -15,9 +15,9 @@ the `omni` binary is available in your PATH. its workspace, tab, pane, agent, an
 
 this file is the hub. read it first. for depth on a specific topic, also read:
 
-- **`skill/agents.md`** — when orchestrating named agents, spawning with `--new-tab` / `--split`, or addressing peers by terminal_id / agent name. covers the full `omni agent <subcommand>` family.
-- **`skill/waits.md`** — when a `wait output` or `wait agent-status` isn't firing, when you need long-running coordination, or when you want to understand how subscriptions survive pane-id compaction.
-- **`skill/recipes.md`** — multi-step orchestration patterns: round-trip a task, fan-out parallel work, spawn-and-coordinate.
+- **`references/agents.md`** — when orchestrating named agents, spawning with `--new-tab` / `--split`, or addressing peers by terminal_id / agent name. covers the full `omni agent <subcommand>` family.
+- **`references/waits.md`** — when a `wait output` or `wait agent-status` isn't firing, when you need long-running coordination, or when you want to understand how subscriptions survive pane-id compaction.
+- **`references/recipes.md`** — multi-step orchestration patterns: round-trip a task, fan-out parallel work, spawn-and-coordinate.
 
 ## concepts
 
@@ -141,7 +141,7 @@ omni pane read 1-3 --source recent-unwrapped --lines 80
 
 on timeout, exit code is `1`.
 
-for deeper coordination patterns, robust waits across compaction, and the already-satisfied edge case, read `skill/waits.md`.
+for deeper coordination patterns, robust waits across compaction, and the already-satisfied edge case, read `references/waits.md`.
 
 ## wait for an agent status
 
@@ -164,7 +164,7 @@ omni agent wait reviewer --status idle --timeout 600000
 omni agent read reviewer --source recent --lines 200
 ```
 
-for the full `omni agent` reference (target forms, all subcommands, `--new-tab` vs `--split` vs `--tab`, response shapes, when to use `agent` vs `pane`), read `skill/agents.md`.
+for the full `omni agent` reference (target forms, all subcommands, `--new-tab` vs `--split` vs `--tab`, response shapes, when to use `agent` vs `pane`), read `references/agents.md`.
 
 ## workspace management
 

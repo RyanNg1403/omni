@@ -1,6 +1,6 @@
-# skill/recipes.md — multi-step orchestration patterns
+# references/recipes.md — multi-step orchestration patterns
 
-This file collects the common multi-step recipes for omni. Each recipe combines primitives covered in the hub `SKILL.md` (and optionally `skill/agents.md`, `skill/waits.md`).
+This file collects the common multi-step recipes for omni. Each recipe combines primitives covered in the hub `SKILL.md` (and optionally `references/agents.md`, `references/waits.md`).
 
 ## Run a server and wait until it is ready
 

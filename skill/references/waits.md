@@ -1,4 +1,4 @@
-# skill/waits.md — deeper wait patterns
+# references/waits.md — deeper wait patterns
 
 This file complements the wait section in the hub `SKILL.md`. The hub covers the common cases (`wait output`, `wait agent-status`, timeouts, the `recent-unwrapped` matching warning). Read this when you need stronger coordination guarantees or are debugging why a wait isn't firing.
 
