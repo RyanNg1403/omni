@@ -197,7 +197,3 @@ omni pane close 1-3
 - without `--label`, workspace create keeps cwd-based naming and tab create keeps numbered naming.
 - `--label` on tab create and workspace create applies the custom name immediately.
 - if you are running inside omni, the `OMNI_ENV` environment variable is set to `1`.
-
-## socket api reference
-
-if you need the raw protocol, read the [socket api docs](https://github.com/RyanNg1403/omni/blob/main/docs/socket-api.md).
