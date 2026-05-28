@@ -180,6 +180,55 @@ omni pane send-keys 1-1 Enter
 omni pane run 1-1 "echo hello"
 ```
 
+## agent commands
+
+the `omni agent` subcommand group targets agents (the running process inside a pane) rather than the pane itself. it accepts a broader set of target forms than `omni pane`:
+
+- the durable `term_<hex>` terminal id (survives public-pane-id compaction)
+- a unique agent name set at `agent start`
+- a detected agent label (e.g. `codex`, `claude`) when unambiguous
+- any pane id the `omni pane` commands accept
+
+spawn a named agent in its own new tab — no shell + split sibling, single-pane tab:
+
+```bash
+omni agent start reviewer --new-tab --no-focus -- codex
+```
+
+spawn a named agent by splitting the current pane:
+
+```bash
+omni agent start worker --split right --no-focus -- claude
+```
+
+`--new-tab` is mutually exclusive with `--tab` and `--split`. with `--workspace <id>` the new tab lands in that workspace; without it the active workspace is used.
+
+target an agent by name from anywhere:
+
+```bash
+omni agent send reviewer "review the fix in bug-report.md"
+omni agent read reviewer --source recent --lines 200
+omni agent wait reviewer --status idle --timeout 600000
+```
+
+`agent send` writes literal text only — follow up with `omni pane send-keys <target> Enter` if you need the keystroke. for a one-shot "send text + Enter", use `omni pane run` instead.
+
+list all agents, get one, rename, focus, or attach:
+
+```bash
+omni agent list
+omni agent get reviewer
+omni agent rename reviewer code-reviewer
+omni agent rename reviewer --clear         # frees the name, keeps the process
+omni agent focus reviewer
+omni agent attach reviewer
+```
+
+when to use `omni agent` vs `omni pane`:
+
+- `omni agent` for orchestration that should survive pane-id shifts: starting named agents, sending tasks, waiting for status, reading output.
+- `omni pane` for layout-aware operations: splitting, closing, focusing by position, sending raw keys.
+
 ## workspace management
 
 create a new workspace:
@@ -288,6 +337,8 @@ omni pane read 1-1 --source recent --lines 100
 ## notes
 
 - `workspace list`, `workspace create`, `tab list`, `tab create`, `tab get`, `tab focus`, `tab rename`, `tab close`, `pane list`, `pane get`, `pane split`, `wait output`, and `wait agent-status` print json on success.
+- `agent list`, `agent get`, `agent start`, `agent rename`, `agent focus` print json on success. `agent send` and `agent attach` print nothing.
+- `agent read` prints text, not json (same as `pane read`).
 - `pane read` prints text, not json.
 - `pane read --format ansi` or `pane read --ansi` returns a rendered ANSI snapshot for TUI feedback loops.
 - `pane read --source recent-unwrapped` is useful when you want to inspect the same unwrapped transcript that `wait output --source recent` matches against.
