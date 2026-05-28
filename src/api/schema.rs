@@ -854,6 +854,9 @@ pub struct PaneReadResult {
     pub pane_id: String,
     pub workspace_id: String,
     pub tab_id: String,
+    /// Stable terminal identity for the pane that was read.
+    #[serde(default)]
+    pub terminal_id: String,
     pub source: ReadSource,
     pub format: ReadFormat,
     pub text: String,
@@ -901,6 +904,10 @@ pub enum SubscriptionEventData {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaneOutputMatchedEvent {
     pub pane_id: String,
+    /// Stable terminal identity. Mirrors the nested `read.terminal_id` for
+    /// consistency with other pane subscription event payloads.
+    #[serde(default)]
+    pub terminal_id: String,
     pub matched_line: String,
     pub read: PaneReadResult,
 }
@@ -909,6 +916,9 @@ pub struct PaneOutputMatchedEvent {
 pub struct PaneAgentStatusChangedEvent {
     pub pane_id: String,
     pub workspace_id: String,
+    /// Stable terminal identity. Survives public pane-id compaction.
+    #[serde(default)]
+    pub terminal_id: String,
     pub agent_status: AgentStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
@@ -980,12 +990,20 @@ pub enum EventData {
     PaneAgentDetected {
         pane_id: String,
         workspace_id: String,
+        /// Stable terminal identity for the pane. Subscriptions match on this
+        /// to survive public-id compaction.
+        #[serde(default)]
+        terminal_id: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         agent: Option<String>,
     },
     PaneAgentStatusChanged {
         pane_id: String,
         workspace_id: String,
+        /// Stable terminal identity for the pane. Subscriptions match on this
+        /// to survive public-id compaction.
+        #[serde(default)]
+        terminal_id: String,
         agent_status: AgentStatus,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         agent: Option<String>,
@@ -1319,11 +1337,13 @@ mod tests {
             event: SubscriptionEventKind::PaneOutputMatched,
             data: SubscriptionEventData::PaneOutputMatched(PaneOutputMatchedEvent {
                 pane_id: "p_1_1".into(),
+                terminal_id: "term_p_1_1".into(),
                 matched_line: "auth: received".into(),
                 read: PaneReadResult {
                     pane_id: "p_1_1".into(),
                     workspace_id: "w_1".into(),
                     tab_id: "t_1_1".into(),
+                    terminal_id: "term_p_1_1".into(),
                     source: ReadSource::Recent,
                     format: ReadFormat::Text,
                     text: "auth: received\n".into(),

@@ -747,6 +747,7 @@ mod tests {
                                     pane_id: "pane_1".into(),
                                     workspace_id: "ws_1".into(),
                                     tab_id: "tab_1".into(),
+                                    terminal_id: "term_test".into(),
                                     source: crate::api::schema::ReadSource::RecentUnwrapped,
                                     format: crate::api::schema::ReadFormat::Text,
                                     text: String::new(),

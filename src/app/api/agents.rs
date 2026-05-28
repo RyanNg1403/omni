@@ -92,6 +92,7 @@ impl App {
                     tab_id: self
                         .public_tab_id(resolved.ws_idx, resolved.tab_idx)
                         .unwrap(),
+                    terminal_id: resolved.terminal_id,
                     source: params.source,
                     format: params.format,
                     text,

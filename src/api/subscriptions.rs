@@ -35,7 +35,9 @@ pub(super) fn match_output(
 }
 
 pub(super) struct ActiveOutputMatchedSubscription {
-    pane_id: String,
+    /// Durable target for internal pane_read polling. Resolved to terminal_id
+    /// at probe time so it survives public-pane-id compaction.
+    target: String,
     source: crate::api::schema::ReadSource,
     lines: Option<u32>,
     matcher: crate::api::schema::OutputMatch,
@@ -46,7 +48,9 @@ pub(super) struct ActiveOutputMatchedSubscription {
 }
 
 pub(super) struct ActiveAgentStatusChangedSubscription {
-    pane_id: String,
+    /// Durable target for internal pane_get polling and for matching against
+    /// event terminal_id. Resolved to terminal_id at probe time.
+    terminal_id: String,
     status_filter: Option<crate::api::schema::AgentStatus>,
     last_status: Option<crate::api::schema::AgentStatus>,
     last_presentation: Option<PanePresentationSnapshot>,
@@ -194,11 +198,17 @@ impl ActiveSubscription {
                     lines,
                     strip_ansi,
                     api_tx,
-                );
-                probe?;
+                )?;
+                // Promote whatever the user supplied to the durable terminal_id,
+                // so future internal pane_read polls survive public-id compaction.
+                let target = if probe.terminal_id.is_empty() {
+                    pane_id
+                } else {
+                    probe.terminal_id
+                };
 
                 Ok(Self::OutputMatched(ActiveOutputMatchedSubscription {
-                    pane_id,
+                    target,
                     source,
                     lines,
                     matcher: r#match,
@@ -216,11 +226,15 @@ impl ActiveSubscription {
                 let probe = pane_get(format!("{request_id}:sub:{index}:probe"), &pane_id, api_tx)?;
                 let last_status = probe.agent_status;
                 let last_presentation = PanePresentationSnapshot::from(&probe);
+                // Subscriptions match by terminal_id (stable across compaction);
+                // store it as the future poll/get target as well.
+                let terminal_id = probe.terminal_id.clone();
                 let initial_event = agent_status
                     .is_some_and(|wanted| wanted == probe.agent_status)
                     .then_some(PaneAgentStatusChangedEvent {
                         pane_id: probe.pane_id,
                         workspace_id: probe.workspace_id,
+                        terminal_id: probe.terminal_id,
                         agent_status: probe.agent_status,
                         agent: probe.agent,
                         title: probe.title,
@@ -231,7 +245,7 @@ impl ActiveSubscription {
 
                 Ok(Self::AgentStatusChanged(Box::new(
                     ActiveAgentStatusChangedSubscription {
-                        pane_id,
+                        terminal_id,
                         status_filter: agent_status,
                         last_status: Some(last_status),
                         last_presentation: Some(last_presentation),
@@ -277,7 +291,7 @@ impl ActiveOutputMatchedSubscription {
     fn poll(&mut self, api_tx: &ApiRequestSender) -> Option<SubscriptionEventEnvelope> {
         let read = pane_read(
             format!("{}:read", self.request_prefix),
-            &self.pane_id,
+            &self.target,
             output_match_read_source(&self.source),
             self.lines,
             self.strip_ansi,
@@ -292,10 +306,15 @@ impl ActiveOutputMatchedSubscription {
                     return None;
                 }
                 self.currently_matching = true;
+                // The read response carries the pane's current canonical public id;
+                // emit it so the client sees a layout-meaningful value.
+                let response_pane_id = read.pane_id.clone();
+                let response_terminal_id = read.terminal_id.clone();
                 Some(SubscriptionEventEnvelope {
                     event: SubscriptionEventKind::PaneOutputMatched,
                     data: SubscriptionEventData::PaneOutputMatched(PaneOutputMatchedEvent {
-                        pane_id: self.pane_id.clone(),
+                        pane_id: response_pane_id,
+                        terminal_id: response_terminal_id,
                         matched_line,
                         read,
                     }),
@@ -321,6 +340,7 @@ impl ActiveAgentStatusChangedSubscription {
             let crate::api::schema::EventData::PaneAgentStatusChanged {
                 pane_id,
                 workspace_id,
+                terminal_id,
                 agent_status,
                 agent,
                 title,
@@ -334,7 +354,8 @@ impl ActiveAgentStatusChangedSubscription {
             if event.event != crate::api::schema::EventKind::PaneAgentStatusChanged {
                 continue;
             }
-            if pane_id != self.pane_id {
+            // Match by stable terminal_id, not by compactable public pane_id.
+            if terminal_id != self.terminal_id {
                 continue;
             }
             saw_status_event = true;
@@ -360,6 +381,7 @@ impl ActiveAgentStatusChangedSubscription {
                 data: SubscriptionEventData::PaneAgentStatusChanged(PaneAgentStatusChangedEvent {
                     pane_id,
                     workspace_id,
+                    terminal_id,
                     agent_status,
                     agent,
                     title,
@@ -384,7 +406,7 @@ impl ActiveAgentStatusChangedSubscription {
         let before_snapshot_sequence = self.last_sequence;
         let pane = pane_get(
             format!("{}:pane", self.request_prefix),
-            &self.pane_id,
+            &self.terminal_id,
             api_tx,
         )
         .ok()?;
@@ -427,6 +449,7 @@ impl ActiveAgentStatusChangedSubscription {
             data: SubscriptionEventData::PaneAgentStatusChanged(PaneAgentStatusChangedEvent {
                 pane_id: pane.pane_id,
                 workspace_id: pane.workspace_id,
+                terminal_id: pane.terminal_id,
                 agent_status: current_status,
                 agent: pane.agent,
                 title: pane.title,
@@ -538,6 +561,7 @@ mod tests {
             data: EventData::PaneAgentStatusChanged {
                 pane_id: "pane_1".into(),
                 workspace_id: "workspace_1".into(),
+                terminal_id: "term_test".into(),
                 agent_status: AgentStatus::Working,
                 agent: Some("pi".into()),
                 title: None,
@@ -552,7 +576,7 @@ mod tests {
     fn agent_status_subscription_replays_queued_metadata_set_and_expiry_events() {
         let event_hub = EventHub::default();
         let mut subscription = ActiveAgentStatusChangedSubscription {
-            pane_id: "pane_1".into(),
+            terminal_id: "term_test".into(),
             status_filter: None,
             last_status: Some(AgentStatus::Working),
             last_presentation: Some(PanePresentationSnapshot {
@@ -590,7 +614,7 @@ mod tests {
     fn agent_status_subscription_prefers_setup_window_events_over_initial_snapshot() {
         let event_hub = EventHub::default();
         let mut subscription = ActiveAgentStatusChangedSubscription {
-            pane_id: "pane_1".into(),
+            terminal_id: "term_test".into(),
             status_filter: Some(AgentStatus::Working),
             last_status: Some(AgentStatus::Working),
             last_presentation: Some(PanePresentationSnapshot {
@@ -603,6 +627,7 @@ mod tests {
             initial_event: Some(PaneAgentStatusChangedEvent {
                 pane_id: "pane_1".into(),
                 workspace_id: "workspace_1".into(),
+                terminal_id: "term_test".into(),
                 agent_status: AgentStatus::Working,
                 agent: Some("pi".into()),
                 title: None,
@@ -637,7 +662,7 @@ mod tests {
     fn agent_status_subscription_emits_setup_window_event_already_reflected_by_probe() {
         let event_hub = EventHub::default();
         let mut subscription = ActiveAgentStatusChangedSubscription {
-            pane_id: "pane_1".into(),
+            terminal_id: "term_test".into(),
             status_filter: Some(AgentStatus::Working),
             last_status: Some(AgentStatus::Working),
             last_presentation: Some(PanePresentationSnapshot {
@@ -650,6 +675,7 @@ mod tests {
             initial_event: Some(PaneAgentStatusChangedEvent {
                 pane_id: "pane_1".into(),
                 workspace_id: "workspace_1".into(),
+                terminal_id: "term_test".into(),
                 agent_status: AgentStatus::Working,
                 agent: Some("pi".into()),
                 title: None,
@@ -670,5 +696,88 @@ mod tests {
         };
         assert_eq!(data.custom_status.as_deref(), Some("short lived"));
         assert!(subscription.initial_event.is_none());
+    }
+
+    fn status_event_for(
+        public_pane_id: &str,
+        terminal_id: &str,
+        custom_status: Option<&str>,
+    ) -> EventEnvelope {
+        EventEnvelope {
+            event: EventKind::PaneAgentStatusChanged,
+            data: EventData::PaneAgentStatusChanged {
+                pane_id: public_pane_id.into(),
+                workspace_id: "workspace_1".into(),
+                terminal_id: terminal_id.into(),
+                agent_status: AgentStatus::Working,
+                agent: Some("codex".into()),
+                title: None,
+                display_agent: None,
+                custom_status: custom_status.map(str::to_string),
+                state_labels: HashMap::new(),
+            },
+        }
+    }
+
+    /// Codex-requested regression: a subscription registered against a stable
+    /// terminal_id keeps observing its target even after a sibling pane closes
+    /// and the target's *public* pane id is compacted to a different value.
+    #[test]
+    fn agent_status_subscription_survives_public_pane_id_compaction() {
+        let event_hub = EventHub::default();
+        let mut subscription = ActiveAgentStatusChangedSubscription {
+            terminal_id: "term_target".into(),
+            status_filter: None,
+            last_status: Some(AgentStatus::Working),
+            last_presentation: Some(PanePresentationSnapshot {
+                title: None,
+                display_agent: None,
+                custom_status: None,
+                state_labels: HashMap::new(),
+            }),
+            last_sequence: event_hub.current_sequence(),
+            initial_event: None,
+            request_prefix: "regression".into(),
+        };
+
+        // Pre-compaction: target's current public id is w-3. Event fires with it.
+        event_hub.push(status_event_for("w-3", "term_target", Some("before")));
+        // Compaction: pane w-2 closes; target's public id is now w-2. Event fires
+        // with the new public id but the SAME terminal_id.
+        event_hub.push(status_event_for("w-2", "term_target", Some("after")));
+        // An unrelated agent emits an event with a public id that happens to
+        // collide with the target's old public id — must be ignored.
+        event_hub.push(status_event_for("w-3", "term_other", Some("decoy")));
+
+        let api_tx = tokio::sync::mpsc::unbounded_channel().0;
+
+        let first = subscription
+            .poll(&api_tx, &event_hub)
+            .expect("first event observed");
+        let SubscriptionEventData::PaneAgentStatusChanged(first_data) = first.data else {
+            panic!("wrong event data");
+        };
+        assert_eq!(first_data.terminal_id, "term_target");
+        assert_eq!(first_data.pane_id, "w-3");
+        assert_eq!(first_data.custom_status.as_deref(), Some("before"));
+
+        let second = subscription
+            .poll(&api_tx, &event_hub)
+            .expect("post-compaction event observed");
+        let SubscriptionEventData::PaneAgentStatusChanged(second_data) = second.data else {
+            panic!("wrong event data");
+        };
+        assert_eq!(second_data.terminal_id, "term_target");
+        assert_eq!(
+            second_data.pane_id, "w-2",
+            "subscription must observe the target at its NEW public pane id"
+        );
+        assert_eq!(second_data.custom_status.as_deref(), Some("after"));
+
+        // The decoy (different terminal_id, same old public id) must not fire.
+        assert!(
+            subscription.poll(&api_tx, &event_hub).is_none(),
+            "events for a different terminal_id must be ignored even if their pane_id collides"
+        );
     }
 }

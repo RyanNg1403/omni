@@ -297,6 +297,13 @@ impl App {
             return;
         };
         let workspace_id = self.public_workspace_id(update.ws_idx);
+        let terminal_id = self
+            .state
+            .workspaces
+            .get(update.ws_idx)
+            .and_then(|ws| ws.terminal_id(update.pane_id))
+            .map(|id| id.to_string())
+            .unwrap_or_default();
 
         if update.previous_agent_label != update.agent_label {
             self.emit_event(crate::api::schema::EventEnvelope {
@@ -304,6 +311,7 @@ impl App {
                 data: crate::api::schema::EventData::PaneAgentDetected {
                     pane_id: pane_id.clone(),
                     workspace_id: workspace_id.clone(),
+                    terminal_id: terminal_id.clone(),
                     agent: update.agent_label.clone(),
                 },
             });
@@ -327,6 +335,7 @@ impl App {
                 data: crate::api::schema::EventData::PaneAgentStatusChanged {
                     pane_id,
                     workspace_id,
+                    terminal_id,
                     agent_status,
                     agent: update.agent_label.clone(),
                     title: presentation.title,

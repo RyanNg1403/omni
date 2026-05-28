@@ -12,7 +12,7 @@ use super::super::api_helpers::{
     detect_state_from_api, encode_api_keys, encode_api_text, normalize_custom_status,
     normalize_reported_agent_label,
 };
-use super::responses::{encode_error, encode_success};
+use super::responses::{encode_error, encode_error_body, encode_success};
 
 impl App {
     pub(super) fn handle_pane_split(&mut self, id: String, params: PaneSplitParams) -> String {
@@ -88,8 +88,9 @@ impl App {
     }
 
     pub(super) fn handle_pane_get(&mut self, id: String, target: PaneTarget) -> String {
-        let Some((ws_idx, pane_id)) = self.parse_pane_id(&target.pane_id) else {
-            return pane_not_found(id, &target.pane_id);
+        let (ws_idx, pane_id) = match self.resolve_pane_target(&target.pane_id) {
+            Ok(resolved) => (resolved.ws_idx, resolved.pane_id),
+            Err(err) => return encode_error_body(id, self.pane_target_error_body(err)),
         };
         let Some(pane) = self.pane_info(ws_idx, pane_id) else {
             return pane_not_found(id, &target.pane_id);
@@ -125,18 +126,12 @@ impl App {
     }
 
     pub(super) fn handle_pane_read(&mut self, id: String, params: PaneReadParams) -> String {
-        let Some((ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
-            return pane_not_found(id, &params.pane_id);
+        let resolved = match self.resolve_pane_target(&params.pane_id) {
+            Ok(resolved) => resolved,
+            Err(err) => return encode_error_body(id, self.pane_target_error_body(err)),
         };
+        let (ws_idx, pane_id, tab_idx) = (resolved.ws_idx, resolved.pane_id, resolved.tab_idx);
         let Some((pane, workspace_id)) = self.lookup_runtime(ws_idx, pane_id) else {
-            return pane_not_found(id, &params.pane_id);
-        };
-        let Some(tab_idx) = self
-            .state
-            .workspaces
-            .get(ws_idx)
-            .and_then(|ws| ws.find_tab_index_for_pane(pane_id))
-        else {
             return pane_not_found(id, &params.pane_id);
         };
         let requested_lines = params.lines.unwrap_or(80).min(1000) as usize;
@@ -152,14 +147,18 @@ impl App {
                 ReadSource::RecentUnwrapped => pane.recent_unwrapped_ansi(requested_lines),
             },
         };
+        let canonical_pane_id = self
+            .public_pane_id(ws_idx, pane_id)
+            .unwrap_or(params.pane_id);
 
         encode_success(
             id,
             ResponseResult::PaneRead {
                 read: PaneReadResult {
-                    pane_id: params.pane_id,
+                    pane_id: canonical_pane_id,
                     workspace_id,
                     tab_id: self.public_tab_id(ws_idx, tab_idx).unwrap(),
+                    terminal_id: resolved.terminal_id,
                     source: params.source,
                     format: params.format,
                     text,
@@ -340,8 +339,9 @@ impl App {
         id: String,
         params: PaneSendTextParams,
     ) -> String {
-        let Some((ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
-            return pane_not_found(id, &params.pane_id);
+        let (ws_idx, pane_id) = match self.resolve_pane_target(&params.pane_id) {
+            Ok(resolved) => (resolved.ws_idx, resolved.pane_id),
+            Err(err) => return encode_error_body(id, self.pane_target_error_body(err)),
         };
         let Some(runtime) = self.lookup_runtime_sender(ws_idx, pane_id) else {
             return pane_not_found(id, &params.pane_id);
@@ -358,8 +358,9 @@ impl App {
         id: String,
         params: PaneSendInputParams,
     ) -> String {
-        let Some((ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
-            return pane_not_found(id, &params.pane_id);
+        let (ws_idx, pane_id) = match self.resolve_pane_target(&params.pane_id) {
+            Ok(resolved) => (resolved.ws_idx, resolved.pane_id),
+            Err(err) => return encode_error_body(id, self.pane_target_error_body(err)),
         };
         let Some(runtime) = self.lookup_runtime_sender(ws_idx, pane_id) else {
             return pane_not_found(id, &params.pane_id);
@@ -431,8 +432,9 @@ impl App {
         id: String,
         params: PaneSendKeysParams,
     ) -> String {
-        let Some((ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
-            return pane_not_found(id, &params.pane_id);
+        let (ws_idx, pane_id) = match self.resolve_pane_target(&params.pane_id) {
+            Ok(resolved) => (resolved.ws_idx, resolved.pane_id),
+            Err(err) => return encode_error_body(id, self.pane_target_error_body(err)),
         };
         let Some(runtime) = self.lookup_runtime_sender(ws_idx, pane_id) else {
             return pane_not_found(id, &params.pane_id);
@@ -535,5 +537,83 @@ mod tests {
         assert_eq!(success.id, "req");
         assert_eq!(app.state.request_remove_linked_worktree, None);
         assert!(app.state.workspaces.is_empty());
+    }
+
+    fn app_with_terminal() -> (App, String, String) {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &Config::default(),
+            true,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        let workspace = Workspace::test_new("addr");
+        let pane_id = workspace.tabs[0].root_pane;
+        let terminal_id = workspace.terminal_id(pane_id).unwrap().to_string();
+        app.state.workspaces = vec![workspace];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        let public_pane_id = app.public_pane_id(0, pane_id).unwrap();
+        (app, terminal_id, public_pane_id)
+    }
+
+    #[test]
+    fn pane_get_accepts_terminal_id() {
+        let (mut app, terminal_id, public_pane_id) = app_with_terminal();
+        assert!(terminal_id.starts_with("term_"));
+
+        let response = app.handle_pane_get(
+            "req".into(),
+            PaneTarget {
+                pane_id: terminal_id,
+            },
+        );
+
+        let value: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert!(value.get("error").is_none(), "got error: {value}");
+        // Response carries the canonical public form, not the terminal_id input.
+        assert_eq!(
+            value["result"]["pane"]["pane_id"].as_str().unwrap(),
+            public_pane_id,
+        );
+    }
+
+    #[test]
+    fn pane_get_still_accepts_public_pane_id() {
+        let (mut app, _terminal_id, public_pane_id) = app_with_terminal();
+
+        let response = app.handle_pane_get(
+            "req".into(),
+            PaneTarget {
+                pane_id: public_pane_id.clone(),
+            },
+        );
+
+        let value: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert!(value.get("error").is_none(), "got error: {value}");
+        assert_eq!(
+            value["result"]["pane"]["pane_id"].as_str().unwrap(),
+            public_pane_id,
+        );
+    }
+
+    #[test]
+    fn pane_get_unknown_target_reports_pane_not_found() {
+        let (mut app, _terminal_id, _public_pane_id) = app_with_terminal();
+
+        let response = app.handle_pane_get(
+            "req".into(),
+            PaneTarget {
+                pane_id: "term_does_not_exist".into(),
+            },
+        );
+
+        let value: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(
+            value["error"]["code"].as_str().unwrap(),
+            "pane_not_found",
+            "expected pane_not_found, got: {value}",
+        );
     }
 }
