@@ -5,23 +5,19 @@ description: "Control omni from inside it. Manage workspaces and tabs, split pan
 
 # omni — agent skill
 
-before using this skill, check that `OMNI_ENV=1`. if it is not set to `1`, say you are not running inside a omni-managed pane and stop. do not inspect or control the focused omni pane from outside omni.
+before using this skill, check that `OMNI_ENV=1`. if it is not set to `1`, say you are not running inside an omni-managed pane and stop. do not inspect or control the focused omni pane from outside omni.
 
 you are running inside omni, a terminal-native agent multiplexer. omni gives you workspaces, tabs, and panes — each pane is a real terminal with its own shell, agent, server, or log stream — and you can control all of it from the cli.
 
-this means you can:
+the `omni` binary is available in your PATH. its workspace, tab, pane, agent, and wait commands talk to the running omni instance over a local unix socket.
 
-- see what other panes and agents are doing
-- create tabs for separate subcontexts inside one workspace
-- split panes and run commands in them
-- start servers, watch logs, and run tests in sibling panes
-- wait for specific output before continuing
-- wait for another agent to finish
-- spawn more agent instances
+## map of this skill
 
-the `omni` binary is available in your PATH. its workspace, tab, pane, and wait commands talk to the running omni instance over a local unix socket.
+this file is the hub. read it first. for depth on a specific topic, also read:
 
-if you need the raw protocol or full api reference, read the [socket api docs](https://github.com/RyanNg1403/omni/blob/main/docs/socket-api.md).
+- **`skill/agents.md`** — when orchestrating named agents, spawning with `--new-tab` / `--split`, or addressing peers by terminal_id / agent name. covers the full `omni agent <subcommand>` family.
+- **`skill/waits.md`** — when a `wait output` or `wait agent-status` isn't firing, when you need long-running coordination, or when you want to understand how subscriptions survive pane-id compaction.
+- **`skill/recipes.md`** — multi-step orchestration patterns: round-trip a task, fan-out parallel work, spawn-and-coordinate.
 
 ## concepts
 
@@ -83,49 +79,19 @@ list workspaces:
 omni workspace list
 ```
 
-## tab management
+your own pane id is also available in the `OMNI_PANE_ID` env var (durable `p_<raw>` form).
 
-list tabs in the current workspace:
+## tab management
 
 ```bash
 omni tab list --workspace 1
-```
-
-create a new tab:
-
-```bash
-omni tab create --workspace 1
-```
-
-without `--label`, the new tab keeps the default numbered tab name.
-
-create and name it in one step:
-
-```bash
-omni tab create --workspace 1 --label "logs"
-```
-
-rename it:
-
-```bash
+omni tab create --workspace 1 --label "logs"   # without --label: numbered name
 omni tab rename 1:2 "logs"
-```
-
-focus it:
-
-```bash
 omni tab focus 1:2
-```
-
-close it:
-
-```bash
 omni tab close 1:2
 ```
 
 ## read another pane
-
-see what is on another pane's screen:
 
 ```bash
 omni pane read 1-1 --source recent --lines 50
@@ -136,8 +102,6 @@ omni pane read 1-1 --source recent --lines 50
 - `--source recent-unwrapped` = recent terminal text with soft wraps joined back together
 
 ## split a pane and run a command
-
-split your pane to the right and keep focus on your current pane:
 
 ```bash
 omni pane split 1-2 --direction right --no-focus
@@ -150,146 +114,65 @@ NEW_PANE=$(omni pane split 1-2 --direction right --no-focus | python3 -c 'import
 omni pane run "$NEW_PANE" "npm run dev"
 ```
 
-split downward instead:
+split downward with `--direction down`.
+
+## send text or keys to a pane
 
 ```bash
-omni pane split 1-2 --direction down --no-focus
+omni pane send-text 1-1 "hello"          # text only, no Enter
+omni pane send-keys 1-1 Enter            # press Enter (or other keys)
+omni pane run 1-1 "echo hello"           # text + Enter in one request
 ```
 
 ## wait for output
 
-block until specific text appears in a pane. useful for waiting on servers, builds, and tests.
-
-for `--source recent`, matching uses unwrapped recent terminal text, so pane width and soft wrapping do not break matches. `pane read --source recent` still shows the pane as rendered. if you want to inspect the same transcript that the waiter matches, use `pane read --source recent-unwrapped`.
+block until specific text appears in a pane. useful for servers, builds, tests.
 
 ```bash
 omni wait output 1-3 --match "ready on port 3000" --timeout 30000
-```
-
-with regex:
-
-```bash
 omni wait output 1-3 --match "server.*ready" --regex --timeout 30000
 ```
 
-if it times out, exit code is `1`.
+matching uses unwrapped recent terminal text, so pane width and soft wrapping do not break matches. if a wait isn't firing, inspect the same transcript the waiter sees:
+
+```bash
+omni pane read 1-3 --source recent-unwrapped --lines 80
+```
+
+on timeout, exit code is `1`.
+
+for deeper coordination patterns, robust waits across compaction, and the already-satisfied edge case, read `skill/waits.md`.
 
 ## wait for an agent status
 
 block until another agent reaches a specific status:
 
 ```bash
-omni wait agent-status 1-1 --status done --timeout 60000
+omni wait agent-status 1-1 --status done --timeout 600000
 ```
 
-use this when you want the same `done` / `idle` distinction the UI shows.
+this uses the same `done` / `idle` distinction the sidebar shows. for long-running coordination, prefer the durable `term_<hex>` target so the wait survives sibling pane closures.
 
-## send text or keys to a pane
+## starting agents and addressing them by name
 
-send text without pressing Enter:
-
-```bash
-omni pane send-text 1-1 "hello from claude"
-```
-
-press Enter or other keys:
+the `omni agent` family is the durable orchestration entry point. brief reference:
 
 ```bash
-omni pane send-keys 1-1 Enter
-```
-
-`pane run` sends the text and then a real `Enter` key in one request:
-
-```bash
-omni pane run 1-1 "echo hello"
-```
-
-## agent commands
-
-the `omni agent` subcommand group targets agents (the running process inside a pane) rather than the pane itself. it accepts a broader set of target forms than `omni pane`:
-
-- the durable `term_<hex>` terminal id (survives public-pane-id compaction)
-- a unique agent name set at `agent start`
-- a detected agent label (e.g. `codex`, `claude`) when unambiguous
-- any pane id the `omni pane` commands accept
-
-spawn a named agent in its own new tab — no shell + split sibling, single-pane tab:
-
-```bash
-omni agent start reviewer --new-tab --no-focus -- codex
-```
-
-spawn a named agent by splitting the current pane:
-
-```bash
-omni agent start worker --split right --no-focus -- claude
-```
-
-`--new-tab` is mutually exclusive with `--tab` and `--split`. with `--workspace <id>` the new tab lands in that workspace; without it the active workspace is used.
-
-target an agent by name from anywhere:
-
-```bash
-omni agent send reviewer "review the fix in bug-report.md"
-omni agent read reviewer --source recent --lines 200
+omni agent start reviewer --new-tab --no-focus -- codex   # single-pane tab, named
+omni agent send reviewer "review the fix in bug.md"
 omni agent wait reviewer --status idle --timeout 600000
+omni agent read reviewer --source recent --lines 200
 ```
 
-`agent send` writes literal text only — follow up with `omni pane send-keys <target> Enter` if you need the keystroke. for a one-shot "send text + Enter", use `omni pane run` instead.
-
-list all agents, get one, rename, focus, or attach:
-
-```bash
-omni agent list
-omni agent get reviewer
-omni agent rename reviewer code-reviewer
-omni agent rename reviewer --clear         # frees the name, keeps the process
-omni agent focus reviewer
-omni agent attach reviewer
-```
-
-when to use `omni agent` vs `omni pane`:
-
-- `omni agent` for orchestration that should survive pane-id shifts: starting named agents, sending tasks, waiting for status, reading output.
-- `omni pane` for layout-aware operations: splitting, closing, focusing by position, sending raw keys.
+for the full `omni agent` reference (target forms, all subcommands, `--new-tab` vs `--split` vs `--tab`, response shapes, when to use `agent` vs `pane`), read `skill/agents.md`.
 
 ## workspace management
 
-create a new workspace:
-
 ```bash
-omni workspace create --cwd /path/to/project
-```
-
-without `--label`, the new workspace keeps the default cwd-based name.
-
-create and name one in one step:
-
-```bash
-omni workspace create --cwd /path/to/project --label "api server"
-```
-
-create one without focusing it:
-
-```bash
+omni workspace create --cwd /path/to/project --label "api server"   # --label optional
 omni workspace create --no-focus
-```
-
-focus a workspace:
-
-```bash
 omni workspace focus 2
-```
-
-rename:
-
-```bash
 omni workspace rename 1 "api server"
-```
-
-close:
-
-```bash
 omni workspace close 2
 ```
 
@@ -297,65 +180,6 @@ omni workspace close 2
 
 ```bash
 omni pane close 1-3
-```
-
-## recipes
-
-### run a server and wait until it is ready
-
-```bash
-NEW_PANE=$(omni pane split 1-2 --direction right --no-focus | python3 -c 'import sys,json; print(json.load(sys.stdin)["result"]["pane"]["pane_id"])')
-omni pane run "$NEW_PANE" "npm run dev"
-omni wait output "$NEW_PANE" --match "ready" --timeout 30000
-omni pane read "$NEW_PANE" --source recent --lines 20
-```
-
-### run tests in a separate pane and inspect the result
-
-```bash
-omni pane split 1-2 --direction down --no-focus
-omni pane run 1-3 "cargo test"
-omni wait output 1-3 --match "test result" --timeout 60000
-omni pane read 1-3 --source recent --lines 30
-```
-
-### check what another agent is working on
-
-```bash
-omni pane list
-omni pane read 1-1 --source recent --lines 80
-```
-
-### watch another pane robustly
-
-use this pattern when you need to coordinate with a sibling pane:
-
-```bash
-# inspect what is already there
-omni pane read 1-3 --source recent --lines 40
-
-# wait only for the next output you expect
-omni wait output 1-3 --match "ready" --timeout 30000
-
-# if you need to inspect the same transcript the waiter matched,
-# read the unwrapped recent text directly
-omni pane read 1-3 --source recent-unwrapped --lines 40
-```
-
-### spawn a new agent and give it a task
-
-```bash
-omni pane split 1-2 --direction right --no-focus
-omni pane run 1-3 "claude"
-omni wait output 1-3 --match ">" --timeout 15000
-omni pane run 1-3 "review the test coverage in src/api/"
-```
-
-### coordinate with another agent
-
-```bash
-omni wait agent-status 1-1 --status done --timeout 120000
-omni pane read 1-1 --source recent --lines 100
 ```
 
 ## notes
@@ -373,3 +197,7 @@ omni pane read 1-1 --source recent --lines 100
 - without `--label`, workspace create keeps cwd-based naming and tab create keeps numbered naming.
 - `--label` on tab create and workspace create applies the custom name immediately.
 - if you are running inside omni, the `OMNI_ENV` environment variable is set to `1`.
+
+## socket api reference
+
+if you need the raw protocol, read the [socket api docs](https://github.com/RyanNg1403/omni/blob/main/docs/socket-api.md).
