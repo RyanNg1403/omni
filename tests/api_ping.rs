@@ -10,8 +10,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use support::{
-    cleanup_test_base, register_runtime_dir, register_spawned_omni_pid,
-    unregister_spawned_omni_pid,
+    cleanup_test_base, register_runtime_dir, register_spawned_omni_pid, unregister_spawned_omni_pid,
 };
 
 fn unique_test_dir() -> PathBuf {
@@ -85,11 +84,7 @@ fn spawn_omni_with_path(
     fs::create_dir_all(config_home.join("omni")).unwrap();
     fs::create_dir_all(runtime_dir).unwrap();
     register_runtime_dir(runtime_dir);
-    fs::write(
-        config_home.join("omni/config.toml"),
-        "onboarding = false\n",
-    )
-    .unwrap();
+    fs::write(config_home.join("omni/config.toml"), "onboarding = false\n").unwrap();
 
     let pair = native_pty_system()
         .openpty(PtySize {
@@ -1229,10 +1224,7 @@ fn pane_report_agent_updates_effective_state() {
     );
     assert_eq!(pane["result"]["pane"]["agent"], "pi");
     assert_eq!(pane["result"]["pane"]["agent_status"], "working");
-    assert_eq!(
-        pane["result"]["pane"]["agent_session"]["source"],
-        "omni:pi"
-    );
+    assert_eq!(pane["result"]["pane"]["agent_session"]["source"], "omni:pi");
     assert_eq!(pane["result"]["pane"]["agent_session"]["agent"], "pi");
     assert_eq!(pane["result"]["pane"]["agent_session"]["kind"], "path");
     assert_eq!(

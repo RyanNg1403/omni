@@ -2828,11 +2828,9 @@ mod tests {
             original_pane_count + 1,
         );
         // --no-focus: the original root should remain untouched in tab 0.
-        assert!(
-            app.state.workspaces[0]
-                .public_pane_numbers
-                .contains_key(&root),
-        );
+        assert!(app.state.workspaces[0]
+            .public_pane_numbers
+            .contains_key(&root),);
 
         let runtimes: Vec<_> = app.terminal_runtimes.drain().collect();
         for (_terminal_id, runtime) in runtimes {

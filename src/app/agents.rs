@@ -376,13 +376,11 @@ impl App {
         let previous_focus = self.state.current_pane_focus_target();
         let scrollback_limit_bytes = self.state.pane_scrollback_limit_bytes;
         let host_terminal_theme = self.state.host_terminal_theme;
-        let ws = self
-            .state
-            .workspaces
-            .get_mut(ws_idx)
-            .ok_or_else(|| AgentStartError::TargetNotFound {
+        let ws = self.state.workspaces.get_mut(ws_idx).ok_or_else(|| {
+            AgentStartError::TargetNotFound {
                 target: ws_idx.to_string(),
-            })?;
+            }
+        })?;
         let (tab_idx, terminal, runtime) = ws
             .create_tab_argv(
                 rows,

@@ -390,10 +390,7 @@ impl InstallSource {
     }
 }
 
-fn prepare_remote_omni(
-    target: &str,
-    live_handoff_enabled: bool,
-) -> io::Result<PreparedRemoteOmni> {
+fn prepare_remote_omni(target: &str, live_handoff_enabled: bool) -> io::Result<PreparedRemoteOmni> {
     let platform = detect_remote_platform(target)?;
     let remote_omni = RemoteOmni::for_platform(platform);
     let override_binary = remote_binary_override_path()?;
@@ -508,10 +505,7 @@ fn remote_omni_from_path_probe(remote_omni: &RemoteOmni, stdout: &str) -> Option
     Some(remote_omni.clone().with_shell_path(shell_quote(path)))
 }
 
-fn remote_omni_from_path_probe_any(
-    remote_omni: &RemoteOmni,
-    stdout: &str,
-) -> Option<RemoteOmni> {
+fn remote_omni_from_path_probe_any(remote_omni: &RemoteOmni, stdout: &str) -> Option<RemoteOmni> {
     let mut lines = stdout.lines();
     let path = lines.next()?;
     if !path.starts_with('/') {
@@ -786,10 +780,7 @@ fn confirm_remote_install_with_running_server(
     Ok(())
 }
 
-fn remote_server_status(
-    target: &str,
-    remote_omni: &RemoteOmni,
-) -> io::Result<RemoteServerStatus> {
+fn remote_server_status(target: &str, remote_omni: &RemoteOmni) -> io::Result<RemoteServerStatus> {
     let command = format!("{} status server --json", remote_omni.shell_path);
     let output = ssh_output(target, &command)?;
     if !output.status.success() {
@@ -1043,8 +1034,7 @@ fn warn_if_remote_bin_not_on_path(target: &str) -> io::Result<()> {
 
 fn download_release_asset(platform: &RemotePlatform) -> io::Result<InstallSource> {
     if UPDATE_MANIFEST_URL.is_empty() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
+        return Err(io::Error::other(
             "remote install is disabled in this build (no release manifest hosted)",
         ));
     }
@@ -1303,9 +1293,7 @@ impl SshStdioBridge {
                 match listener.accept() {
                     Ok((stream, _addr)) => {
                         if let Err(err) = stream.set_nonblocking(false) {
-                            eprintln!(
-                                "omni: remote bridge failed to prepare client socket: {err}"
-                            );
+                            eprintln!("omni: remote bridge failed to prepare client socket: {err}");
                             continue;
                         }
                         if let Err(err) =
@@ -1647,11 +1635,7 @@ mod tests {
 
     #[test]
     fn extract_remote_args_rejects_duplicate_values() {
-        let args = vec![
-            "omni".into(),
-            "--remote=dev".into(),
-            "--remote=prod".into(),
-        ];
+        let args = vec!["omni".into(), "--remote=dev".into(), "--remote=prod".into()];
         let err = extract_remote_args(&args).unwrap_err();
         assert_eq!(err, "--remote can only be specified once");
     }

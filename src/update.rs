@@ -2137,10 +2137,8 @@ mod tests {
     fn package_manager_path_detection_follows_homebrew_symlink() {
         #[cfg(unix)]
         {
-            let root = std::env::temp_dir().join(format!(
-                "omni-homebrew-symlink-test-{}",
-                std::process::id()
-            ));
+            let root = std::env::temp_dir()
+                .join(format!("omni-homebrew-symlink-test-{}", std::process::id()));
             let cellar_bin = root.join("Cellar/omni/0.6.2/bin");
             let opt_bin = root.join("opt/omni/bin");
             fs::create_dir_all(&cellar_bin).unwrap();

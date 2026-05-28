@@ -66,9 +66,7 @@ fn server_live_handoff(args: &[String]) -> std::io::Result<i32> {
 
     eprintln!(
         "live handoff complete; server log: {}",
-        crate::session::data_dir()
-            .join("omni-server.log")
-            .display()
+        crate::session::data_dir().join("omni-server.log").display()
     );
     Ok(0)
 }

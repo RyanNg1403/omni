@@ -256,8 +256,7 @@ mod tests {
 
         assert!(session_ref_from_report("omni:pi", "pi", Some("bad\nid".into()), None).is_none());
         assert!(
-            session_ref_from_report("omni:pi", "pi", None, Some("relative.jsonl".into()))
-                .is_none()
+            session_ref_from_report("omni:pi", "pi", None, Some("relative.jsonl".into())).is_none()
         );
         assert!(session_ref_from_report("custom:pi", "pi", Some("pi-id".into()), None).is_none());
         assert!(session_ref_from_report(

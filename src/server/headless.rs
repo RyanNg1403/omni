@@ -2820,9 +2820,7 @@ fn print_ready_message(api_socket: &Path, client_socket: &Path) {
     eprintln!("client socket: {}", client_socket.display());
     eprintln!(
         "logs: {}",
-        crate::session::data_dir()
-            .join("omni-server.log")
-            .display()
+        crate::session::data_dir().join("omni-server.log").display()
     );
     eprintln!("did you mean to open the Omni TUI? run `omni`; you do not need `omni server`.");
 }

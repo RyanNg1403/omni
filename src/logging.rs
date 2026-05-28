@@ -598,10 +598,7 @@ mod tests {
     #[test]
     fn rotated_log_path_appends_numeric_suffix() {
         let path = PathBuf::from("/tmp/omni.log");
-        assert_eq!(
-            rotated_log_path(&path, 2),
-            PathBuf::from("/tmp/omni.log.2")
-        );
+        assert_eq!(rotated_log_path(&path, 2), PathBuf::from("/tmp/omni.log.2"));
     }
 
     #[test]

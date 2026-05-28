@@ -12,8 +12,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use support::{
-    cleanup_test_base, register_runtime_dir, register_spawned_omni_pid,
-    unregister_spawned_omni_pid,
+    cleanup_test_base, register_runtime_dir, register_spawned_omni_pid, unregister_spawned_omni_pid,
 };
 
 fn unique_test_dir() -> PathBuf {

@@ -868,8 +868,7 @@ mod tests {
 
     #[test]
     fn desktop_notification_falls_back_to_osascript_when_terminal_notifier_fails() {
-        let path =
-            std::env::temp_dir().join(format!("omni-osascript-args-{}", std::process::id()));
+        let path = std::env::temp_dir().join(format!("omni-osascript-args-{}", std::process::id()));
         let script = r#"
 if [ "$0" = "terminal-notifier" ]; then
   exit 1
